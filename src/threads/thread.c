@@ -210,7 +210,7 @@ thread_create (const char *name, int priority,
     ct_q.cid = TID_ERROR;
     struct hash_elem *ect = hash_delete(&t->parent->children, &ct_q.elem);
     struct child_info *ct  = hash_entry(ect, struct child_info, elem);
-    ctcid = tid;
+    ct->cid = tid;
     ct->cthread = thread_current();
     hash_insert(&t->parent->children, &ct->elem);
     hash_init(&t->children, ct_hash_func, ct_hash_less_func, NULL);
@@ -638,7 +638,7 @@ bool fds_hash_less_func (const struct hash_elem *a,
 /* Returns hash of the child_info key. */
 unsigned ct_hash_func (const struct hash_elem *e, void *aux UNUSED) {
   struct child_info *ct = hash_entry(e, struct child_info, elem);
-  return hash_int(ctcid);
+  return hash_int(ct->cid);
 }
 
 /* Returns true if child id of child_info a is less than
@@ -648,7 +648,7 @@ bool ct_hash_less_func (const struct hash_elem *a,
             void *aux UNUSED) {
   struct child_info *ct_a = hash_entry (a, struct child_info, elem);
   struct child_info *ct_b = hash_entry (b, struct child_info, elem);
-  return ct_acid < ct_bcid;
+  return ct_a->cid < ct_b->cid;
 }
 
 unsigned mapid_hash_func (const struct hash_elem *e, void *aux UNUSED) {
