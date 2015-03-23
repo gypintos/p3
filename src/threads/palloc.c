@@ -61,9 +61,9 @@ palloc_init (size_t user_page_limit)
   init_pool (&user_pool, free_start + kernel_pages * PGSIZE,
              user_pages, "user pool");
 
-  clock_point = &user_pool->base;
-  clock_point_init = &user_pool->base;
-  clock_point_max = &user_pool->base + bitmap_size(&user_pool->used_map) * PGSIZE;
+  clock_point_init = user_pool.base;
+  clock_point = clock_point_init
+  clock_point_max = clock_point_init + bitmap_size(user_pool.used_map) * PGSIZE;
 
 }
 
