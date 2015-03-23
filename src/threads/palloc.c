@@ -62,7 +62,7 @@ palloc_init (size_t user_page_limit)
              user_pages, "user pool");
 
   clock_point_init = user_pool.base;
-  clock_point = clock_point_init
+  clock_point = clock_point_init;
   clock_point_max = clock_point_init + bitmap_size(user_pool.used_map) * PGSIZE;
 
 }
