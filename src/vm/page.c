@@ -329,8 +329,8 @@ unsigned hash_fun_exec_name(const struct hash_elem *elem, void *aux UNUSED){
 
 bool cmp_exec_name(const struct hash_elem *a, const struct hash_elem *b,
                   void *aux UNUSED){
-  const struct exec_thrads *l = hash_entry(a, struct exec_threads, hash_elem);
-  const struct exec_thrads *r = hash_entry(b, struct exec_threads, hash_elem);
+  struct exec_threads *l = hash_entry(a, struct exec_threads, hash_elem);
+  struct exec_threads *r = hash_entry(b, struct exec_threads, hash_elem);
   return hash_string(l->exec_name) < hash_string(r->exec_name);
 
 }
