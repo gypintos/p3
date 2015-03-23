@@ -163,8 +163,8 @@ syscall_handler (struct intr_frame *f)
             retrieve_and_validate_args(syscall, 1, args);
             char *buff_ptr = (char *)*(int *)args[0];
             validate_pointer(buff_ptr, f->esp, /* Writeable */ false);
-            int child_id = exec(buff_ptr);
-            f->eax = child_id;
+            int cid = exec(buff_ptr);
+            f->eax = cid;
             unlock_args_memory(syscall, 1, args);
             break;
         }
@@ -352,7 +352,7 @@ void exit (int status) {
 
     /* Close executable */
     lock_acquire(&filesyslock);
-    file_close(t->exec);
+    file_close(t->exe);
     lock_release(&filesyslock);
 
     /* Destroy supplementary page table */
@@ -366,12 +366,12 @@ void exit (int status) {
     if (t->parent != NULL) {
         struct thread *p = t->parent;
         //signal exit status to the parent
-        struct childtracker *ct = find_child_rec(p, thread_current()->tid);
+        struct child_info *ct = find_child_rec(p, thread_current()->tid);
         if (ct != NULL) {
             lock_acquire(&ct->wait_lock);
-            ct->exit_status = status;
+            ct->exit_code = status;
             ct->state = CHILD_EXITING;
-            ct->child = NULL;
+            ct->cthread = NULL;
             cond_signal(&ct->wait_cond, &ct->wait_lock);
             lock_release(&ct->wait_lock);
         }
@@ -391,8 +391,8 @@ static tid_t exec (const char *file_name){
 }
 
 /* Waits for a child process pid and returns the child's exit status. */
-static int wait (tid_t child_id) {
-    return process_wait(child_id);
+static int wait (tid_t cid) {
+    return process_wait(cid);
 }
 
 /* Creates a new file called file initially initial_size bytes in size. */
@@ -427,10 +427,10 @@ static bool create (const char *file_name, unsigned initial_size) {
    and adds fd_to_file to the hash table of the thread pointed to by t.*/
 static void add_to_fds(struct thread *t, struct fd_to_file *opened_file) {
      do {
-             if (t->fd_cnt == USHRT_MAX) {
-                 t->fd_cnt = 1;
+             if (t->fd_seq == USHRT_MAX) {
+                 t->fd_seq = 1;
              }
-             opened_file->fd = ++t->fd_cnt;
+             opened_file->fd = ++t->fd_seq;
          }
      while (hash_insert(&t->fds, &opened_file->elem) != NULL);
 }
@@ -591,12 +591,12 @@ void mapids_destructor_func (struct hash_elem *e, void *aux UNUSED) {
     free(m);
 }
 
-/* Destructor of the childtracker. If child has not exited yet,
+/* Destructor of the child_info. If child has not exited yet,
    sets its parent member to NULL. Frees memory. */
 void ct_destructor_func (struct hash_elem *e, void *aux UNUSED) {
-    struct childtracker *ct = hash_entry (e, struct childtracker, elem);
-    if (ct->child != NULL) {
-        ct->child->parent = NULL;
+    struct child_info *ct = hash_entry (e, struct child_info, elem);
+    if (ct->cthread != NULL) {
+        ct->cthread->parent = NULL;
     }
     free(ct);
 }

@@ -206,17 +206,17 @@ thread_create (const char *name, int priority,
   /* Init children, fds, mapids list and exit controls
    for all descendants of initial thread, except idle */
   if (!hash_empty(&t->parent->children)) {
-    struct childtracker ct_q;
-    ct_q.child_id = TID_ERROR;
+    struct child_info ct_q;
+    ct_q.cid = TID_ERROR;
     struct hash_elem *ect = hash_delete(&t->parent->children, &ct_q.elem);
-    struct childtracker *ct  = hash_entry(ect, struct childtracker, elem);
-    ct->child_id = tid;
-    ct->child = thread_current();
+    struct child_info *ct  = hash_entry(ect, struct child_info, elem);
+    ctcid = tid;
+    ct->cthread = thread_current();
     hash_insert(&t->parent->children, &ct->elem);
     hash_init(&t->children, ct_hash_func, ct_hash_less_func, NULL);
     hash_init(&t->fds, fds_hash_func, fds_hash_less_func, &filesyslock);
 	hash_init(&t->mapids, mapid_hash_func, mapid_hash_less_func, NULL);
-    t->fd_cnt = 1;
+    t->fd_seq = 1;
 	t->mapid_cnt = 1;
   }
 
@@ -635,20 +635,20 @@ bool fds_hash_less_func (const struct hash_elem *a,
   return ftf_a->fd < ftf_b->fd;
 }
 
-/* Returns hash of the childtracker key. */
+/* Returns hash of the child_info key. */
 unsigned ct_hash_func (const struct hash_elem *e, void *aux UNUSED) {
-  struct childtracker *ct = hash_entry(e, struct childtracker, elem);
-  return hash_int(ct->child_id);
+  struct child_info *ct = hash_entry(e, struct child_info, elem);
+  return hash_int(ctcid);
 }
 
-/* Returns true if child id of childtracker a is less than
-   child id of the childtracker b. */
+/* Returns true if child id of child_info a is less than
+   child id of the child_info b. */
 bool ct_hash_less_func (const struct hash_elem *a,
             const struct hash_elem *b,
             void *aux UNUSED) {
-  struct childtracker *ct_a = hash_entry (a, struct childtracker, elem);
-  struct childtracker *ct_b = hash_entry (b, struct childtracker, elem);
-  return ct_a->child_id < ct_b->child_id;
+  struct child_info *ct_a = hash_entry (a, struct child_info, elem);
+  struct child_info *ct_b = hash_entry (b, struct child_info, elem);
+  return ct_acid < ct_bcid;
 }
 
 unsigned mapid_hash_func (const struct hash_elem *e, void *aux UNUSED) {
@@ -665,15 +665,15 @@ bool mapid_hash_less_func (const struct hash_elem *a,
 
 /* Given id of the child process returns pointer to the corresponding
    childracker from the children hash table of the thread pointed to by
-   given pointer t, if hash table does not contain such childtracker
+   given pointer t, if hash table does not contain such child_info
    - returns NULL. */
-struct childtracker *find_child_rec (struct thread *t, tid_t child_id) {
-  struct childtracker ct;
+struct child_info *find_child_rec (struct thread *t, tid_t cid) {
+  struct child_info ct;
   struct hash_elem *e;
 
-  ct.child_id = child_id;
+  ct.cid = cid;
   e = hash_find(&t->children, &ct.elem);
-  return e != NULL ? hash_entry (e, struct childtracker, elem) : NULL;
+  return e != NULL ? hash_entry (e, struct child_info, elem) : NULL;
 }
 
 

@@ -122,7 +122,7 @@ load_page (struct page *p, bool lock)
         swap_out(p, kaddr);
       }
       else {
-        if(!load_page_from_file (kaddr, thread_current()->exec,
+        if(!load_page_from_file (kaddr, thread_current()->exe,
             p->offset, p->read_bytes, p->zero_bytes))
         return false;
       }

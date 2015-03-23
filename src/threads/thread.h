@@ -3,8 +3,8 @@
 
 #include <debug.h>
 #include <list.h>
-#include <hash.h>
 #include <stdint.h>
+#include <hash.h>
 #include <threads/synch.h>
 
 /* States in a thread's life cycle. */
@@ -19,8 +19,8 @@ enum thread_status
 enum child_state
   {
     CHILD_LOADING,          /* Child process is loading. */
-    CHILD_LOAD_FAILED,      /* Child process failed to load. */
     CHILD_LOAD_SUCCESS,     /* Child process succeded to load. */
+    CHILD_LOAD_FAILED,      /* Child process failed to load. */
     CHILD_EXITING           /* About to exit. */
   };
 
@@ -33,7 +33,7 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
-
+#define MAX_FILES 126                    /* Used to control max number of files allowed to opened by process */
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -103,20 +103,29 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    /* For userprog */
     struct thread *parent;              /* Parent of this thread */
+    
     /* Hash table for tracking status of thread's children */
     struct hash children;
+    
     /* Hash table for tracking thread's file descriptors */
     struct hash fds;
-    struct file *exec;                  /* Pointer to process executable */
-	struct list_elem exec_elem;         /* List element of the executable to thread mapping. */
-    unsigned short fd_cnt;              /* "Sequence" for file descriptors */
-	struct hash mapids;					/* Hash table for tracking thread's mapids */
-	unsigned short mapid_cnt;           /* "Sequence" for mapids */
+    
+    int fd_seq;              /* Sequence number of open file */
+
+    struct file *exe;                  /* Pointer to process executable */
+
+    struct list_elem exec_elem;         /* List element of the executable to thread mapping. */
+  
+    struct hash mapids;					/* Hash table for tracking thread's mapids */
+
+    int mapid_cnt;           /* "Sequence" for mapids */
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
+    
     struct hash page_table;             /* Supplemental page table */
 
     /* Owned by thread.c. */
@@ -159,21 +168,18 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-struct childtracker {
-  tid_t child_id;                 /* Id of the child process */
-  struct thread *child;           /* Pointer to the child */
-  struct lock wait_lock;          /* Lock guarding child status fields */
-  struct condition wait_cond;
-  /* Condvar on which paent wait for child status updates */
-  int exit_status;              /* Child's exit status */
+struct child_info {
+  tid_t cid;                 /* Id of the child process */
+  struct thread *cthread;           /* Pointer to the child */
+  int exit_code;              /* Child's exit status */
   enum child_state state;       /* Child's state */
   struct hash_elem elem;        /* Hash table element */
+  struct lock wait_lock;          /* Lock guarding child status fields */
+  struct condition wait_cond;    /* Condvar on which paent wait for child status updates */
 };
 
-struct childtracker *find_child_rec (struct thread *t, tid_t child_id);
+struct child_info *find_child_rec (struct thread *t, tid_t cid);
 
-/* Used to control max number of files allowed to opened by process */
-#define MAX_FILES 126
 
 struct fd_to_file {
   int fd;                     /* File descriptor id. */

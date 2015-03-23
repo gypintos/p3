@@ -59,9 +59,9 @@ process_execute (const char *file_name)
   thread_name = strtok_r ((char *) fn_ker_copy, " ", &save_ptr);
 
   //Create tracker for child status
-  struct childtracker *ct = (struct childtracker *) malloc (sizeof (struct childtracker));
-  ct->child_id = TID_ERROR;
-  ct->exit_status = 0;
+  struct child_info *ct = (struct child_info *) malloc (sizeof (struct child_info));
+  ct->cid = TID_ERROR;
+  ct->exit_code = 0;
   ct->state = CHILD_LOADING;
   lock_init(&ct->wait_lock);
   cond_init(&ct->wait_cond);
@@ -113,7 +113,7 @@ start_process (void *file_name_)
   // Signal parent about load status
   struct thread *p = thread_current()->parent;
   if (p != NULL) {
-    struct childtracker *ct = find_child_rec (thread_current()->parent, thread_current()->tid);
+    struct child_info *ct = find_child_rec (thread_current()->parent, thread_current()->tid);
     lock_acquire(&ct->wait_lock);
     ct->state = success ? CHILD_LOAD_SUCCESS : CHILD_LOAD_FAILED;
     cond_signal(&ct->wait_cond, &ct->wait_lock);
@@ -146,7 +146,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid)
 {
-    struct childtracker *ct = find_child_rec(thread_current(), child_tid);
+    struct child_info *ct = find_child_rec(thread_current(), child_tid);
     if (ct == NULL) {
         return -1;
     }
@@ -155,7 +155,7 @@ process_wait (tid_t child_tid)
         cond_wait(&ct->wait_cond, &ct->wait_lock);
     }
     lock_release(&ct->wait_lock);
-    int status = ct->exit_status;
+    int status = ct->exit_code;
     hash_delete(&thread_current()->children, &ct->elem);
     free(ct);
     return status;
@@ -389,7 +389,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not. */
   if (file != NULL) {
-    thread_current()->exec = file;
+    thread_current()->exe = file;
     file_deny_write(file);
   }
   return success;
