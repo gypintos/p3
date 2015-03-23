@@ -22,14 +22,14 @@ struct t_to_uaddr {
   struct hash_elem elem;      /* Hash element of thread_to_uaddr */
   };
 
+  void *clock_point;          /* Frame the clock algorithm currently points to */
+  void *clock_point_init;        /* Initial position of the clock hand */
+  void *clock_point_max;        /* Maximum position of the clock hand (maximal address of the frames in the user pool */
 
   struct hash frames;        /* Frames table */
   struct lock frames_lock;       /* Frame lock */
   struct condition frames_locked;  /* Condition to wait on for any frame to unpin\unlock */
-  void *clock_hand;          /* Frame the clock algorithm currently points to */
-  void *ini_clock_hand;        /* Initial position of the clock hand */
-  void *max_clock_hand;        /* Maximum position of the clock hand (maximal address of the frames in the user pool */
-
+ 
   void *allocate_frame (enum palloc_flags flags, bool lock);
   void free_frame (struct page *p, bool freepdir);
   void free_uninstalled_frame (void *addr);

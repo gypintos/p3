@@ -34,22 +34,22 @@ void frame_table_init (void) {
    or just allocated to another thread. */
 struct frame *choose_frame (void) {
 
-    void *start = clock_hand == ini_clock_hand ? max_clock_hand
-                                               : clock_hand - PGSIZE;
+    void *start = clock_point == clock_point_init ? clock_point_max
+                                               : clock_point - PGSIZE;
     struct frame *f;
-    while (start != clock_hand) {
-        if (clock_hand >= max_clock_hand) {
-            clock_hand = ini_clock_hand;
+    while (start != clock_point) {
+        if (clock_point >= clock_point_max) {
+            clock_point = clock_point_init;
         }
-        f = frame_lookup(clock_hand);
+        f = frame_lookup(clock_point);
         if (f == NULL) {
-            clock_hand = clock_hand + PGSIZE;
+            clock_point = clock_point + PGSIZE;
             continue;
         }
         if (!f->locked && !f->pinned) {
             if (is_frame_accessed (f)) {
                 hash_apply(&f->thread_to_uaddr, clear_page_accessed);
-                clock_hand = clock_hand + PGSIZE;
+                clock_point = clock_point + PGSIZE;
                 continue;
             }
             else {
@@ -60,7 +60,7 @@ struct frame *choose_frame (void) {
             if (is_frame_accessed (f)) {
                 hash_apply(&f->thread_to_uaddr, clear_page_accessed);
             }
-            clock_hand = clock_hand + PGSIZE;
+            clock_point = clock_point + PGSIZE;
             continue;
         }
     }
