@@ -180,11 +180,10 @@ struct child_info {
 
 struct child_info *find_child_rec (struct thread *t, tid_t cid);
 
-
-struct fd_to_file {
-  int fd;                     /* File descriptor id. */
-  struct file *file_ptr;      /* Pointer to the opened file. */
-  struct hash_elem elem;      /* Hash table element. */
+struct file_desc {
+  int fid;                  /* ID of file descriptor */
+  struct  file *fptr;       /* the actual file poiter */
+  struct hash_elem elem;    /* hash element */
 };
 
 struct mapping {

@@ -31,7 +31,7 @@ static int open (const char *file_name);
 static bool remove (const char *file_name);
 static int filesize (int fd);
 static struct file * thread_fd_to_file (int fd);
-static void add_to_fds (struct thread *t, struct fd_to_file* opened_file);
+static void add_to_fds (struct thread *t, struct file_desc* opened_file);
 static int read (int fd, void *buffer, unsigned length);
 static void close (int fd);
 static void seek (int fd, unsigned position);
@@ -418,14 +418,14 @@ static bool create (const char *file_name, unsigned initial_size) {
      if (file_ptr == NULL) {
             return -1;
      }
-     struct fd_to_file *opened_file = malloc(sizeof (struct fd_to_file));
-     opened_file->file_ptr = file_ptr;
+     struct file_desc *opened_file = malloc(sizeof (struct file_desc));
+     opened_file->fptr = file_ptr;
      add_to_fds(t, opened_file);
-     return opened_file->fd;
+     return opened_file->fid;
 }
-/* Allocates new file descriptor id, assigns it to opened_file fd_to_file
-   and adds fd_to_file to the hash table of the thread pointed to by t.*/
-static void add_to_fds(struct thread *t, struct fd_to_file *opened_file) {
+/* Allocates new file descriptor id, assigns it to opened_file file_desc
+   and adds file_desc to the hash table of the thread pointed to by t.*/
+static void add_to_fds(struct thread *t, struct file_desc *opened_file) {
      do {
              if (t->fd_seq == USHRT_MAX) {
                  t->fd_seq = 1;
@@ -459,16 +459,16 @@ static void add_to_fds(struct thread *t, struct fd_to_file *opened_file) {
 
  /* Returns pointer to a file if it is opened by current thread,
   * null - otherwise. */
- static struct file * thread_fd_to_file (int fd) {
-    struct fd_to_file ftf;
-    struct fd_to_file *ftf_ptr ;
-    ftf.fd = fd;
-    struct hash_elem *e = hash_find(&thread_current()->fds, &ftf.elem);
+ static struct file * thread_fd_to_file (int fid) {
+    struct file_desc fd;
+    struct file_desc *fd_ptr ;
+    fd.fid = fid;
+    struct hash_elem *e = hash_find(&thread_current()->fds, &fd.elem);
     if (e == NULL) {
         return NULL;
     }
-    ftf_ptr = hash_entry(e, struct fd_to_file, elem);
-    return ftf_ptr->file_ptr;
+    fd_ptr = hash_entry(e, struct file_desc, elem);
+    return fd_ptr->fptr;
  }
 
 /* Reads size bytes from the file open as fd into buffer.
@@ -536,17 +536,17 @@ static int write (int fd, const void *buffer, unsigned length) {
 
 /*Closes a file, if process owns file descriptor.
   Removes file descriptor from the list of the process.*/
-static void close (int fd) {
-    struct fd_to_file ftf;
-    ftf.fd = fd;
+static void close (int fid) {
+    struct file_desc fd;
+    fd.fd = fid;
     struct hash *fds_ptr = &thread_current()->fds;
-    struct hash_elem *e = hash_delete(fds_ptr, &ftf.elem);
+    struct hash_elem *e = hash_delete(fds_ptr, &fd.elem);
     if (e == NULL) {return;}
-    struct fd_to_file *ftf_ptr = hash_entry(e, struct fd_to_file, elem);
+    struct file_desc *fd_ptr = hash_entry(e, struct file_desc, elem);
     lock_acquire(&filesyslock);
-    file_close(ftf_ptr->file_ptr);
+    file_close(fd_ptr->fptr);
     lock_release(&filesyslock);
-    free(ftf_ptr);
+    free(fd_ptr);
 }
 
 /* Changes the next byte to be read or written in open file fd
@@ -574,15 +574,15 @@ static unsigned tell (int fd) {
     return position;
 }
 
-/* Destructor of the fd_to_file. Closes respective file within
-   guarded secion and frees memory allocated to fd_to_file. */
+/* Destructor of the file_desc. Closes respective file within
+   guarded secion and frees memory allocated to file_desc. */
 void fds_destructor_func (struct hash_elem *e, void *aux) {
-    struct fd_to_file *ftf = hash_entry (e, struct fd_to_file, elem);
+    struct file_desc *fd = hash_entry (e, struct file_desc, elem);
     struct lock *fs_lock = (struct lock *) aux;
     lock_acquire(fs_lock);
-    file_close(ftf->file_ptr);
+    file_close(fd->fptr);
     lock_release(fs_lock);
-    free(ftf);
+    free(fd);
 }
 
 void mapids_destructor_func (struct hash_elem *e, void *aux UNUSED) {

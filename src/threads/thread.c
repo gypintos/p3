@@ -1,8 +1,8 @@
 #include "threads/thread.h"
 #include <debug.h>
+#include <stddef.h>
 #include <hash.h>
 #include <random.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include "threads/flags.h"
@@ -13,8 +13,8 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #ifdef USERPROG
-#include "userprog/process.h"
 #include "userprog/syscall.h"
+#include "userprog/process.h"
 #endif
 #include "vm/page.h"
 
@@ -73,6 +73,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+/*************/
 unsigned fds_hash_func (const struct hash_elem *e, void *aux);
 bool fds_hash_less_func (const struct hash_elem *a,
              const struct hash_elem *b,
@@ -85,6 +86,7 @@ unsigned mapid_hash_func (const struct hash_elem *e, void *aux);
 bool mapid_hash_less_func (const struct hash_elem *a,
              const struct hash_elem *b,
              void *aux);
+/*************/
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -619,20 +621,20 @@ allocate_tid (void)
   return tid;
 }
 
-/* Returns hash of the fd_to_file. */
+/* Returns hash of the file_desc. */
 unsigned fds_hash_func (const struct hash_elem *e, void *aux UNUSED) {
-  struct fd_to_file *ftf = hash_entry(e, struct fd_to_file, elem);
-  return ftf->fd;
+  struct file_desc *fi = hash_entry(e, struct file_desc, elem);
+  return fi->fd;
 }
 
-/* Returns true if file descriptor id of the fd_to_file a is less than
-   file descriptor id of the fd_to_file b. */
+/* Returns true if file descriptor id of the file_desc a is less than
+   file descriptor id of the file_desc b. */
 bool fds_hash_less_func (const struct hash_elem *a,
              const struct hash_elem *b,
              void *aux UNUSED) {
-  struct fd_to_file *ftf_a = hash_entry (a, struct fd_to_file, elem);
-  struct fd_to_file *ftf_b = hash_entry (b, struct fd_to_file, elem);
-  return ftf_a->fd < ftf_b->fd;
+  struct file_desc *fd_a = hash_entry (a, struct file_desc, elem);
+  struct file_desc *fd_b = hash_entry (b, struct file_desc, elem);
+  return fd_a->fid < fd_b->fid;
 }
 
 /* Returns hash of the child_info key. */
