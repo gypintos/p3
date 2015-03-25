@@ -623,8 +623,8 @@ allocate_tid (void)
 
 /* Returns hash of the file_desc. */
 unsigned fds_hash_func (const struct hash_elem *e, void *aux UNUSED) {
-  struct file_desc *fi = hash_entry(e, struct file_desc, elem);
-  return fi->fd;
+  struct file_desc *fd = hash_entry(e, struct file_desc, elem);
+  return fd->fid;
 }
 
 /* Returns true if file descriptor id of the file_desc a is less than

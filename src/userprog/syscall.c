@@ -430,7 +430,7 @@ static void add_to_fds(struct thread *t, struct file_desc *opened_file) {
              if (t->fd_seq == USHRT_MAX) {
                  t->fd_seq = 1;
              }
-             opened_file->fd = ++t->fd_seq;
+             opened_file->fid = ++t->fd_seq;
          }
      while (hash_insert(&t->fds, &opened_file->elem) != NULL);
 }
@@ -538,7 +538,7 @@ static int write (int fd, const void *buffer, unsigned length) {
   Removes file descriptor from the list of the process.*/
 static void close (int fid) {
     struct file_desc fd;
-    fd.fd = fid;
+    fd.fid = fid;
     struct hash *fds_ptr = &thread_current()->fds;
     struct hash_elem *e = hash_delete(fds_ptr, &fd.elem);
     if (e == NULL) {return;}
