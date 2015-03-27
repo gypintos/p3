@@ -102,7 +102,7 @@ start_process (void *file_name_)
   struct thread *parent = thread_current()->parent;
   if (parent != NULL) {
     struct child_info *ci = find_child_info(
-		thread_current()->parent,thread_current()->tid);
+		  thread_current()->parent,thread_current()->tid);
     lock_acquire(&ci->wait_lock);
     ci->state = success ? CHILD_LOAD_SUCCESS : CHILD_LOAD_FAILED;
     cond_signal(&ci->wait_cond, &ci->wait_lock);
@@ -461,17 +461,14 @@ load_segment (off_t ofs, uint8_t *upage, uint32_t read_bytes,
          and zero the final PAGE_ZERO_BYTES bytes. */
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
-	  if (writable) {
-		  //printf("Add writable segment \n");
-		  }
+
       add_page_segment(upage, writable, ofs, page_read_bytes,
                        page_zero_bytes);
-
+      ofs += PGSIZE;
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
-	  ofs += PGSIZE;
     }
   return true;
 }
