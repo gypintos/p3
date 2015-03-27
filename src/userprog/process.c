@@ -43,47 +43,42 @@ process_execute (const char *file_name)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  // char * fn_ker_copy = palloc_get_page (0);
-  // if (fn_ker_copy == NULL)
-  //   return TID_ERROR;
+  struct child_info *ci = (struct child_info* ) malloc (sizeof(struct child_info));
+  lock_init(&ci->wait_lock);
+  cond_init(&ci->wait_cond);
+  ci-> exit_code = 0;
+  ci->state = CHILD_LOADING;
+  ci->cid = TID_ERROR;
+  hash_insert(&thread_current()->children, &ci->elem);
 
-  // strlcpy (fn_ker_copy, file_name, PGSIZE);
+  lock_acquire(&ci->wait_lock);
 
+  char* fn_copy2 = palloc_get_page (0);
+  if (fn_copy2 == NULL)
+    return TID_ERROR;
+  strlcpy (fn_copy2, file_name, PGSIZE);
   char *save_ptr;
   char *thread_name;
-  thread_name = strtok_r ((char *) file_name, " ", &save_ptr);
-
-  struct child_info *ct = (struct child_info *) malloc (sizeof (struct child_info));
-  ct->cid = TID_ERROR;
-  ct->exit_code = 0;
-  ct->state = CHILD_LOADING;
-  lock_init(&ct->wait_lock);
-  cond_init(&ct->wait_cond);
-  hash_insert(&thread_current()->children, &ct->elem);
-
-  lock_acquire(&ct->wait_lock);
-
+  thread_name = strtok_r ((char *) fn_copy2, " ", &save_ptr);
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
-  // palloc_free_page (fn_ker_copy);
+  
+  palloc_free_page (fn_copy2);
   while (tid != TID_ERROR && ct->state == CHILD_LOADING) {
-    cond_wait(&ct->wait_cond, &ct->wait_lock);
+    cond_wait(&ci->wait_cond, &ci->wait_lock);
   }
 
-  lock_release(&ct->wait_lock);
+  lock_release(&ci->wait_lock);
 
   if (tid == TID_ERROR) {
+    hash_delete(&thread_current()->children, &ci->elem);
     palloc_free_page (fn_copy);
-    hash_delete(&thread_current()->children, &ct->elem);
-    free(ct);
-  }
-
-  else if (ct->state == CHILD_LOAD_FAILED) {
-      tid = TID_ERROR;
-      hash_delete(&thread_current()->children, &ct->elem);
-      free(ct);
+    free(ci);
+  } else if (ci->state == CHILD_LOAD_FAILED) {
+    tid = TID_ERROR;
+    hash_delete(&thread_current()->children, &ci->elem);
+    free(ci);
   }
 
   return tid;
