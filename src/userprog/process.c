@@ -101,9 +101,8 @@ start_process (void *file_name_)
 
   struct thread *parent = thread_current()->parent;
   if (parent != NULL) {
-    // struct child_info *ci = find_child_info(thread_current()->parent, 
-    //                                         thread_current()->tid);
-    struct child_info *ci = find_child_info(parent, parent->tid);
+    struct child_info *ci = find_child_info(
+		thread_current()->parent,thread_current()->tid);
     lock_acquire(&ci->wait_lock);
     ci->state = success ? CHILD_LOAD_SUCCESS : CHILD_LOAD_FAILED;
     cond_signal(&ci->wait_cond, &ci->wait_lock);
