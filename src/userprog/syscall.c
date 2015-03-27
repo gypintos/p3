@@ -102,9 +102,8 @@ static void validate_pointer (void *addr, void *esp, bool writable) {
     /* Memory unmapped, might lead to stack growth */
     if (!p && esp) {
       bool valid = false;
-      if (addr >= esp - STACK_GROWTH_HEURISTIC) {
-        if (PHYS_BASE - pg_round_down (addr)
-            <= MAX_STACK_SIZE) {
+      if (addr >= esp - DEFAUTL_STACK_GROUTH) {
+        if (PHYS_BASE - pg_round_down (addr) <= STACK_MAX_SIZE) {
           /* Grow with frame locked */
           valid = grow_stack (addr, true, NULL);
         }
@@ -366,7 +365,7 @@ void exit (int status) {
     if (t->parent != NULL) {
         struct thread *p = t->parent;
         //signal exit status to the parent
-        struct child_info *ct = find_child_rec(p, thread_current()->tid);
+        struct child_info *ct = find_child_info(p, thread_current()->tid);
         if (ct != NULL) {
             lock_acquire(&ct->wait_lock);
             ct->exit_code = status;

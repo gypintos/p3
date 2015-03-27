@@ -74,18 +74,17 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 /*************/
-unsigned fds_hash_func (const struct hash_elem *e, void *aux);
-bool fds_hash_less_func (const struct hash_elem *a,
-             const struct hash_elem *b,
-             void *aux);
-unsigned ct_hash_func (const struct hash_elem *e, void *aux UNUSED);
-bool ct_hash_less_func (const struct hash_elem *a,
-            const struct hash_elem *b,
-            void *aux UNUSED);
-unsigned mapid_hash_func (const struct hash_elem *e, void *aux);
-bool mapid_hash_less_func (const struct hash_elem *a,
-             const struct hash_elem *b,
-             void *aux);
+unsigned file_desc_hash_func (const struct hash_elem *e, void *aux);
+bool cmp_file_desc_less (const struct hash_elem *a, const struct hash_elem *b,
+                         void *aux);
+
+unsigned child_info_hash_func (const struct hash_elem *e, void *aux UNUSED);
+bool cmp_child_info_less(const struct hash_elem *a, const struct hash_elem *b,
+                        void *aux UNUSED);
+
+unsigned mapping_hash_func (const struct hash_elem *e, void *aux);
+bool cmp_mapping_less (const struct hash_elem *a, const struct hash_elem *b,
+                      void *aux);
 /*************/
 
 /* Initializes the threading system by transforming the code
@@ -122,8 +121,9 @@ thread_init (void)
 void
 thread_start (void)
 {
-  //Initialize children list for initial thread
-  hash_init(&thread_current()->children, ct_hash_func, ct_hash_less_func, NULL);
+  /* Init children list */
+  hash_init(&thread_current()->children, child_info_hash_func, 
+            cmp_child_info_less, NULL);
 
   /* Create the idle thread. */
   struct semaphore idle_started;
@@ -203,26 +203,25 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-  //child-parent
+
+  /* Setup related info for thread*/
   t->parent = thread_current();
-  /* Init children, fds, mapids list and exit controls
-   for all descendants of initial thread, except idle */
-  if (!hash_empty(&t->parent->children)) {
-    struct child_info ct_q;
-    ct_q.cid = TID_ERROR;
-    struct hash_elem *ect = hash_delete(&t->parent->children, &ct_q.elem);
-    struct child_info *ct  = hash_entry(ect, struct child_info, elem);
-    ct->cid = tid;
-    ct->cthread = thread_current();
-    hash_insert(&t->parent->children, &ct->elem);
-    hash_init(&t->children, ct_hash_func, ct_hash_less_func, NULL);
-    hash_init(&t->fds, fds_hash_func, fds_hash_less_func, &filesyslock);
-	hash_init(&t->mapids, mapid_hash_func, mapid_hash_less_func, NULL);
+  if (!hash_empty( &t->parent->children )) {
+    struct child_info ci;
+    ci.cid = TID_ERROR;
+    struct hash_elem *ect = hash_delete(&t->parent->children, &ci.elem);
+    struct child_info *ci_ = hash_entry(ect, struct child_info, elem);
+    ci_->cid = tid;
+    ci_->cthread = thread_current();
+    hash_insert(&t->parent->children, &ci_->elem);
+    hash_init(&t->children, child_info_hash_func, cmp_child_info_less, NULL);
+    hash_init(&t->fds, file_desc_hash_func, cmp_file_desc_less, &filesyslock);
+    hash_init(&t->mapids, mapping_hash_func, cmp_mapping_less, NULL);
     t->fd_seq = 1;
-	t->mapid_cnt = 1;
+    t->mapid_cnt = 1;
   }
 
-  /* Initialize supplemental page table */
+  /* Init supplemental page table */
   hash_init (&t->page_table, page_hash, page_less, NULL);
 
   /* Stack frame for kernel_thread(). */
@@ -621,60 +620,61 @@ allocate_tid (void)
   return tid;
 }
 
-/* Returns hash of the file_desc. */
-unsigned fds_hash_func (const struct hash_elem *e, void *aux UNUSED) {
-  struct file_desc *fd = hash_entry(e, struct file_desc, elem);
+/* Use file descriptor id as its hash value */
+unsigned file_desc_hash_func(const struct hash_elem* e, void* aux UNUSED) 
+{
+  struct file_desc *fd = hash_entry( e, struct file_desc, elem );
   return fd->fid;
 }
 
-/* Returns true if file descriptor id of the file_desc a is less than
-   file descriptor id of the file_desc b. */
-bool fds_hash_less_func (const struct hash_elem *a,
-             const struct hash_elem *b,
-             void *aux UNUSED) {
+/* Use file descriptor id as the key to compare to file descriptor*/
+bool cmp_file_desc_less(const struct hash_elem* a, const struct hash_elem* b,
+                        void* aux UNUSED) 
+{
   struct file_desc *fd_a = hash_entry (a, struct file_desc, elem);
   struct file_desc *fd_b = hash_entry (b, struct file_desc, elem);
   return fd_a->fid < fd_b->fid;
 }
 
-/* Returns hash of the child_info key. */
-unsigned ct_hash_func (const struct hash_elem *e, void *aux UNUSED) {
-  struct child_info *ct = hash_entry(e, struct child_info, elem);
-  return hash_int(ct->cid);
+/* Use child info id as the key for hash */
+unsigned child_info_hash_func (const struct hash_elem* e, void* aux UNUSED) 
+{
+  struct child_info *ci = hash_entry(e, struct child_info, elem);
+  return hash_int(ci->cid);
 }
 
-/* Returns true if child id of child_info a is less than
-   child id of the child_info b. */
-bool ct_hash_less_func (const struct hash_elem *a,
-            const struct hash_elem *b,
-            void *aux UNUSED) {
-  struct child_info *ct_a = hash_entry (a, struct child_info, elem);
-  struct child_info *ct_b = hash_entry (b, struct child_info, elem);
-  return ct_a->cid < ct_b->cid;
+/* Use child info id as the key for comparing */
+bool cmp_child_info_less (const struct hash_elem* a, const struct hash_elem* b,
+                          void *aux UNUSED) 
+{
+  struct child_info *ci_a = hash_entry (a, struct child_info, elem);
+  struct child_info *ci_b = hash_entry (b, struct child_info, elem);
+  return ci_a->cid < ci_b->cid;
 }
 
-unsigned mapid_hash_func (const struct hash_elem *e, void *aux UNUSED) {
-	struct mapping *m = hash_entry (e, struct mapping, elem);
-	return m->mapid;
+/* Use mapping id as the key for hash */
+unsigned mapping_hash_func (const struct hash_elem* e, void* aux UNUSED) 
+{
+	struct mapping *mp = hash_entry (e, struct mapping, elem);
+	return mp->mapid;
 }
-bool mapid_hash_less_func (const struct hash_elem *a,
-             const struct hash_elem *b,
-             void *aux) {
+
+/* User mapid as the key for comparing */
+bool cmp_mapping_less (const struct hash_elem *a, const struct hash_elem *b,
+                           void *aux)
+{
 	struct mapping *m_a = hash_entry (a, struct mapping, elem);
 	struct mapping *m_b = hash_entry (b, struct mapping, elem);
 	return m_a->mapid < m_b->mapid;
 }
 
-/* Given id of the child process returns pointer to the corresponding
-   childracker from the children hash table of the thread pointed to by
-   given pointer t, if hash table does not contain such child_info
-   - returns NULL. */
-struct child_info *find_child_rec (struct thread *t, tid_t cid) {
-  struct child_info ct;
+/* Return child info for given cid, if there exist one, otherwise NULL*/
+struct child_info *find_child_info (struct thread *t, tid_t cid) 
+{
+  struct child_info ci;
   struct hash_elem *e;
-
-  ct.cid = cid;
-  e = hash_find(&t->children, &ct.elem);
+  ci.cid = cid;
+  e = hash_find(&t->children, &ci.elem);
   return e != NULL ? hash_entry (e, struct child_info, elem) : NULL;
 }
 

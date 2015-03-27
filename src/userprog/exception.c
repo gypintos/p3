@@ -4,8 +4,9 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include "threads/vaddr.h"
+
 #include "userprog/syscall.h"
+#include "threads/vaddr.h"
 #include "vm/page.h"
 
 /* Number of page faults processed. */
@@ -152,28 +153,33 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  valid = false;
-  if (user && not_present && is_user_vaddr (fault_addr)
-      && (fault_addr >= USER_VADDR_BOTTOM)) {
-    struct page *p = page_lookup (fault_addr, thread_current ());
-    if (p) {
-      valid = load_page (p, false);
+
+  /* To implement virtual memory, delete the rest of the function
+     body, and replace it with code that brings in the page to
+     which fault_addr refers. 
+  printf ("Page fault at %p: %s error %s page in %s context.\n",
+          fault_addr,
+          not_present ? "not present" : "rights violation",
+          write ? "writing" : "reading",
+          user ? "user" : "kernel"); */
+
+  result = false;
+  if (not_present && user && 
+      is_user_vaddr (fault_addr) && 
+      (fault_addr >= USER_VADDR_BOTTOM) ) 
+  {
+    struct page *p = page_lookup(fault_addr, thread_current ());
+    if (p != NULL) {
+      result = load_page(p, false);
+    }	else if (fault_addr >= f->esp - DEFAUTL_STACK_GROUTH) {
+  	  if (PHYS_BASE - pg_round_down (fault_addr) <= STACK_MAX_SIZE)	 {
+  		  result = grow_stack(fault_addr, false, NULL);
+  	  }
     }
-
-	else if (fault_addr >= f->esp - STACK_GROWTH_HEURISTIC) {
-	  if (PHYS_BASE - pg_round_down (fault_addr) <= MAX_STACK_SIZE)	 {
-		  valid = grow_stack (fault_addr, false, NULL);
-	  }
-
-	}
   }
-
-  if (!user) {
-    kill (f);
-  }
-
-  if (!valid) {
+  if (result == false) 
       exit (-1);
-  }
 
+  if (user == false)
+    kill (f);
 }

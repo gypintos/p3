@@ -5,24 +5,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "userprog/gdt.h"
+#include "userprog/pagedir.h"
+#include "userprog/tss.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
-#include "threads/malloc.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "userprog/gdt.h"
-#include "userprog/pagedir.h"
-#include "userprog/tss.h"
-#include "vm/frame.h"
 #include "vm/page.h"
+#include "vm/frame.h"
 
-#define WORD_SIZE 4
-#define ARG_DELIMITER " "
+#define WORD 4
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -58,7 +57,6 @@ process_execute (const char *file_name)
   char *thread_name;
   thread_name = strtok_r ((char *) fn_ker_copy, " ", &save_ptr);
 
-  //Create tracker for child status
   struct child_info *ct = (struct child_info *) malloc (sizeof (struct child_info));
   ct->cid = TID_ERROR;
   ct->exit_code = 0;
@@ -113,7 +111,8 @@ start_process (void *file_name_)
   // Signal parent about load status
   struct thread *p = thread_current()->parent;
   if (p != NULL) {
-    struct child_info *ct = find_child_rec (thread_current()->parent, thread_current()->tid);
+    struct child_info *ct = find_child_info(thread_current()->parent, 
+                                            thread_current()->tid);
     lock_acquire(&ct->wait_lock);
     ct->state = success ? CHILD_LOAD_SUCCESS : CHILD_LOAD_FAILED;
     cond_signal(&ct->wait_cond, &ct->wait_lock);
@@ -146,7 +145,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid)
 {
-    struct child_info *ct = find_child_rec(thread_current(), child_tid);
+    struct child_info *ct = find_child_info(thread_current(), child_tid);
     if (ct == NULL) {
         return -1;
     }
@@ -511,8 +510,8 @@ setup_stack (void **esp, char *file_name, char *save_ptr)
 
   char *token;
   // Retrieve arguments
-  for (token = strtok_r (NULL, ARG_DELIMITER, &save_ptr); token != NULL;
-        token = strtok_r (NULL, ARG_DELIMITER, &save_ptr)) {
+  for (token = strtok_r (NULL, " ", &save_ptr); token != NULL;
+        token = strtok_r (NULL, " ", &save_ptr)) {
 		// Add argument
 		*esp -= strlen(token) + 1;
         memcpy(*esp, token, strlen(token));
@@ -539,7 +538,7 @@ setup_stack (void **esp, char *file_name, char *save_ptr)
     stack_arg_ptrs[argc] = 0;
 
     // Add word alignment
-    *esp -= (((size_t) *esp ) % WORD_SIZE) * sizeof(uint8_t);
+    *esp -= (((size_t) *esp ) % WORD) * sizeof(uint8_t);
 
     // Ptrs to arguments on the stack, reverse order
     int j;

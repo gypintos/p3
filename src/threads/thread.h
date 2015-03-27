@@ -178,7 +178,7 @@ struct child_info {
   struct condition wait_cond;    /* Condvar on which paent wait for child status updates */
 };
 
-struct child_info *find_child_rec (struct thread *t, tid_t cid);
+struct child_info *find_child_info (struct thread *t, tid_t cid);
 
 struct file_desc {
   int fid;                  /* ID of file descriptor */
