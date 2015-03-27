@@ -97,25 +97,23 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-
   success = load (file_name, &if_.eip, &if_.esp);
 
-  palloc_free_page (file_name);
-
-  // Signal parent about load status
-  struct thread *p = thread_current()->parent;
-  if (p != NULL) {
-    struct child_info *ct = find_child_info(thread_current()->parent, 
-                                            thread_current()->tid);
-    lock_acquire(&ct->wait_lock);
-    ct->state = success ? CHILD_LOAD_SUCCESS : CHILD_LOAD_FAILED;
-    cond_signal(&ct->wait_cond, &ct->wait_lock);
-    lock_release(&ct->wait_lock);
+  struct thread *parent = thread_current()->parent;
+  if (parent != NULL) {
+    // struct child_info *ci = find_child_info(thread_current()->parent, 
+    //                                         thread_current()->tid);
+    struct child_info *ci = find_child_info(parent, parent->tid);
+    lock_acquire(&ci->wait_lock);
+    ci->state = success ? CHILD_LOAD_SUCCESS : CHILD_LOAD_FAILED;
+    cond_signal(&ci->wait_cond, &ci->wait_lock);
+    lock_release(&ci->wait_lock);
   }
-
+  
+  palloc_free_page (file_name);
   /* If load failed, quit. */
   if (!success)
-      thread_exit ();
+    thread_exit ();
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
