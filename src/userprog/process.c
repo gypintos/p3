@@ -482,74 +482,44 @@ setup_stack (void **esp, char *file_name, char *save_ptr)
   success = grow_stack (((uint8_t *) PHYS_BASE) - PGSIZE, false, NULL);
   if (success) {
 	  *esp = PHYS_BASE;
+  } else {
+	  return success;
   }
-  else {
-	  goto done;
+
+  char* token = (char *) file_name;
+  char** argv = malloc(2 * sizeof (char *));
+  int argc = 0, size = 2; 
+  while(token != NULL) {
+    *esp -= strlen(token) + 1;
+    argv[argc] = *esp;
+    argc++;
+   if (argc >= size){
+      size *= 2;
+      argv = realloc(argv, size * sizeof(char *));
+    }
+    memcpy(*esp, token, strlen(token)+1);
+    if (save_ptr == NULL) break;
+    token = strtok_r (NULL, " ", save_ptr);
   }
+  argv[argc] = 0;
+  int i = (size_t) *esp % 4;
+  if (i){
+    *esp -= i;
+    memcpy(*esp, &argv[argc], i);
+  }
+  for (i = argc; i >= 0; i--){
+    *esp -= sizeof(char *);
+    memcpy(*esp, &argv[i], sizeof(char *));
+  }
+  token = *esp; 
+  *esp -= sizeof(char **);
+  memcpy(*esp, &token, sizeof(char **));
+  *esp -= sizeof(int);
+  memcpy(*esp, &argc, sizeof(int));
+  *esp -= sizeof(void *);
+  memcpy(*esp, &argv[argc], sizeof(void *));
+  free(argv);
 
-  int argc = 1;
-  int arg_num = 1;
-  *esp -= strlen(file_name) + 1;
-  memcpy(*esp, file_name, strlen(file_name));
-  // Array of pointers to arguments on the stack
-  char **stack_arg_ptrs = malloc(sizeof (char *));
-  int k = 0;
-  stack_arg_ptrs[k] = *esp;
-
-  char *token;
-  // Retrieve arguments
-  for (token = strtok_r (NULL, " ", &save_ptr); token != NULL;
-        token = strtok_r (NULL, " ", &save_ptr)) {
-		// Add argument
-		*esp -= strlen(token) + 1;
-        memcpy(*esp, token, strlen(token));
-        if (++arg_num > argc) {
-			argc *= 2;
-            char **new_block = (char **) realloc(stack_arg_ptrs, argc * sizeof (char *));
-			if (new_block == NULL) {
-                free(stack_arg_ptrs);
-                success = false;
-                goto done;
-            }
-            stack_arg_ptrs = new_block;
-        }
-        stack_arg_ptrs[++k] = *esp;
-    }
-    argc = arg_num;
-    char **new_block = (char **)realloc(stack_arg_ptrs, (argc + 1) * sizeof (void *));
-    if (new_block == NULL) {
-        free(stack_arg_ptrs);
-        success = false;
-        goto done;
-    }
-    stack_arg_ptrs = new_block;
-    stack_arg_ptrs[argc] = 0;
-
-    // Add word alignment
-    *esp -= (((size_t) *esp ) % WORD) * sizeof(uint8_t);
-
-    // Ptrs to arguments on the stack, reverse order
-    int j;
-    for (j = argc + 1; j > -1; j--) {
-        *esp -= sizeof (char *);
-        memcpy(*esp, &stack_arg_ptrs[j], sizeof (char *));
-    }
-    free(stack_arg_ptrs);
-
-    // Where do pointers to args start on stack?
-    char **argv_ptr = *esp;
-    *esp -= sizeof (char *);
-    memcpy(*esp, &argv_ptr, sizeof (char *));
-
-    // Add argcount
-    *esp -= sizeof (int);
-    memcpy(*esp, &argc, sizeof(int));
-
-    //Null return address
-    void *ret = 0;
-    *esp -= sizeof(void *);
-    memcpy(*esp, &ret, sizeof(void *));
-    done:
   return success;
 }
 
