@@ -43,19 +43,18 @@ process_execute (const char *file_name)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-
-  /* Extract thread name */
+  
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char * fn_ker_copy = palloc_get_page (0);
-  if (fn_ker_copy == NULL)
-    return TID_ERROR;
+  // char * fn_ker_copy = palloc_get_page (0);
+  // if (fn_ker_copy == NULL)
+  //   return TID_ERROR;
 
-  strlcpy (fn_ker_copy, file_name, PGSIZE);
+  // strlcpy (fn_ker_copy, file_name, PGSIZE);
 
   char *save_ptr;
   char *thread_name;
-  thread_name = strtok_r ((char *) fn_ker_copy, " ", &save_ptr);
+  thread_name = strtok_r ((char *) file_name, " ", &save_ptr);
 
   struct child_info *ct = (struct child_info *) malloc (sizeof (struct child_info));
   ct->cid = TID_ERROR;
@@ -68,7 +67,7 @@ process_execute (const char *file_name)
   lock_acquire(&ct->wait_lock);
 
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
-  palloc_free_page (fn_ker_copy);
+  // palloc_free_page (fn_ker_copy);
   while (tid != TID_ERROR && ct->state == CHILD_LOADING) {
     cond_wait(&ct->wait_cond, &ct->wait_lock);
   }
