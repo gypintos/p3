@@ -65,7 +65,7 @@ process_execute (const char *file_name)
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   
   palloc_free_page (fn_copy2);
-  while (tid != TID_ERROR && ct->state == CHILD_LOADING) {
+  while (tid != TID_ERROR && ci->state == CHILD_LOADING) {
     cond_wait(&ci->wait_cond, &ci->wait_lock);
   }
 
