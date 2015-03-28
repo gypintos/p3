@@ -45,7 +45,7 @@ void validate_addr (void *addr, void *esp, bool writable) {
     struct frame *fm = NULL;
     if (p != NULL && p->loaded){
         fm = frame_lookup(p->kaddr);
-        f->locked = true;
+        fm->locked = true;
     }
     lock_release(&frames_lock);
 
