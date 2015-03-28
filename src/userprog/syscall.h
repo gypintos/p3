@@ -16,7 +16,7 @@ bool create (const char *file_name, unsigned initial_size);
 int open (const char *file_name);
 bool remove (const char *file_name);
 int filesize (int fd);
-struct file * thread_fd_to_file (int fd);
+struct file * get_file_by_id (int fd);
 void add_to_fds (struct thread *t, struct file_desc* opened_file);
 int read (int fd, void *buffer, unsigned length);
 void close (int fd);

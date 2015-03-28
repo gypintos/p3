@@ -268,14 +268,10 @@ void release_buf (const char* buf_ptr, int size) {
     lock_release(&frames_lock);
 }
 
-/* Terminates Pintos by calling shutdown_power_off().*/
 void halt (void) {
     shutdown_power_off();
 }
 
-/* Terminates the current user program, returning status to the kernel.
- * Updates status in the children status list of the parent process.
- * Closes all open files. Closes own executable and calls thread_exit(). */
 void exit (int status) {
     struct thread *t = thread_current();
     printf ("%s: exit(%d)\n", t->name, status);
@@ -389,7 +385,7 @@ void add_to_fds(struct thread *t, struct file_desc *opened_file) {
  /* Returns the size, in bytes, of the file open as fd, -1
     if process does not own file descriptor*/
  int filesize (int fd) {
-     struct file *file_ptr = thread_fd_to_file(fd);
+     struct file *file_ptr = get_file_by_id(fd);
      int size = -1;
      if (file_ptr != NULL) {
         lock_acquire(&filesys_lock);
@@ -401,7 +397,7 @@ void add_to_fds(struct thread *t, struct file_desc *opened_file) {
 
  /* Returns pointer to a file if it is opened by current thread,
   * null - otherwise. */
- struct file * thread_fd_to_file (int fid) {
+ struct file * get_file_by_id (int fid) {
     struct file_desc fd;
     struct file_desc *fd_ptr ;
     fd.fid = fid;
@@ -430,7 +426,7 @@ int read (int fd, void *buffer, unsigned length) {
         release_buf(buffer, length);
         return i;
     }
-    struct file *file_ptr = thread_fd_to_file(fd);
+    struct file *file_ptr = get_file_by_id(fd);
 
     if (file_ptr != NULL) {
         lock_acquire(&filesys_lock);
@@ -442,38 +438,64 @@ int read (int fd, void *buffer, unsigned length) {
     return -1;
 }
 
-/* Writes contents of the buffer to the given file descriptor. */
 int write (int fd, const void *buffer, unsigned length) {
+    // const char *b = (char *) buffer;
+    // if (fd == STDOUT_FILENO) {
+    //     int it = length / BUFFER_SIZE;
+    //     int rem = length % BUFFER_SIZE;
+    //     int k;
+    //     for(k = 0; k < it; k++) {
+    //         putbuf(b + BUFFER_SIZE * k, BUFFER_SIZE);
+    //     }
+    //     if (rem != 0) {
+    //         putbuf(b + BUFFER_SIZE * it, rem);
+    //     }
+    //     release_buf(b, length);
+    //     return length;
+    // }
+    // else if (fd == STDIN_FILENO) {
+    //     return 0;
+    // }
+    // else {
+    //    struct file *file_ptr = get_file_by_id(fd);
+    //    if (file_ptr != NULL) {
+    //        lock_acquire(&filesys_lock);
+    //        length = file_write(file_ptr, b, length);
+    //        lock_release(&filesys_lock);
+    //        release_buf(b, length);
 
-    const char *b = (char *) buffer;
-    if (fd == 1) {
-        int it = length / BUFFER_SIZE;
-        int rem = length % BUFFER_SIZE;
-        int k;
-        for(k = 0; k < it; k++) {
-            putbuf(b + BUFFER_SIZE * k, BUFFER_SIZE);
+    //        return length;
+    //     }
+    //     return 0;
+    // }
+
+    // const char *bp = (char*) buffer;
+    if (fd == STDIN_FILENO) {
+        return 0;
+    } else if (fd == STDOUT_FILENO){
+        int cnt = length/BUFFER_SIZE;
+        int remain = length*BUFFER_SIZE;
+        int i;
+        for (i = 0; i < cnt; i++){
+            putbuf(buffer + i* BUFFER_SIZE, BUFFER_SIZE);
         }
-        if (rem != 0) {
-            putbuf(b + BUFFER_SIZE * it, rem);
+        if (remain > 0){
+            putbuf(buffer + cnt * BUFFER_SIZE, remain);
         }
-        release_buf(b, length);
+        release_buf(buffer, length);
         return length;
-    }
-    else if (fd == 0) {
+    } else {
+        struct file *f_ptr = get_file_by_id(fd);
+        if (f_ptr) {
+            lock_acquire(&filesys_lock);
+            length = file_write(file_ptr, buffer, length);
+            lock_release(&filesys_lock);
+            release_buf(buffer, length);
+            return length;
+        };
         return 0;
     }
-    else {
-       struct file *file_ptr = thread_fd_to_file(fd);
-       if (file_ptr != NULL) {
-           lock_acquire(&filesys_lock);
-           length = file_write(file_ptr, b, length);
-           lock_release(&filesys_lock);
-           release_buf(b, length);
 
-           return length;
-        }
-        return 0;
-    }
 }
 
 /*Closes a file, if process owns file descriptor.
@@ -494,7 +516,7 @@ void close (int fid) {
 /* Changes the next byte to be read or written in open file fd
    to position, expressed in bytes from the beginning of the file.*/
 void seek (int fd, unsigned position) {
-    struct file *file_ptr = thread_fd_to_file(fd);
+    struct file *file_ptr = get_file_by_id(fd);
     if (file_ptr != NULL) {
         lock_acquire(&filesys_lock);
         file_seek(file_ptr, position);
@@ -506,7 +528,7 @@ void seek (int fd, unsigned position) {
 /* Returns the position of the next byte to be read or written
  in open file fd, expressed in bytes from the beginning of the file. */
 unsigned tell (int fd) {
-    struct file *file_ptr = thread_fd_to_file(fd);
+    struct file *file_ptr = get_file_by_id(fd);
     unsigned position = -1;
     if (file_ptr != NULL) {
         lock_acquire(&filesys_lock);
@@ -588,7 +610,7 @@ mapid_t mmap (int fd, void *addr) {
         }
     }
 
-    struct file *file_ptr = thread_fd_to_file(fd);
+    struct file *file_ptr = get_file_by_id(fd);
     if (file_ptr == NULL) {
         return MAP_FAILED;
     }
