@@ -472,8 +472,8 @@ void close (int fid) {
     // lock_release(&filesys_lock);
     // free(fd_ptr);
 
-    struct fild_desc fd;
-    fd.fid fid;
+    struct file_desc fd;
+    fd.fid = fid;
     struct hash_elem* elem = hash_delete(&thread_current()->fds, &fd.elem);
     if (!elem){
         return;  
