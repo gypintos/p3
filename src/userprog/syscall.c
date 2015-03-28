@@ -240,7 +240,7 @@ void release_args (int *ptr, int count, void **argv) {
             struct frame *fm = frame_lookup(p->kaddr);
             fm->locked = false;
         }
-        lock_release(&frame_lock);
+        lock_release(&frames_lock);
         argv[i] = tmp_ptr;
     }
 }
