@@ -1,8 +1,9 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
 
-
 typedef int mapid_t;
+struct lock filesyslock;
+
 
 void syscall_init (void);
 void exit (int status);
@@ -31,6 +32,7 @@ void validate_buffer (char* buff_ptr, int size, void *esp, bool writeable);
 void unlock_buffer (const char* buff_ptr, int size);
 void unlock_args_memory (int *ptr, int argnum, void **syscall_args_ptr);
 
+/* Map region identifier. */
 
 /* Failure status code of mmap operation */
 #define MAP_FAILED ((mapid_t) -1)
