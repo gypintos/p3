@@ -195,10 +195,10 @@ load_page_from_file (uint8_t *kaddr, struct file *file, off_t ofs,
 {
   ASSERT ((page_read_bytes + page_zero_bytes) % PGSIZE == 0);
 
-  lock_acquire(&filesyslock);
+  lock_acquire(&filesys_lock);
   file_seek (file, ofs);
   int f_read_bytes = file_read (file, kaddr, page_read_bytes);
-  lock_release(&filesyslock);
+  lock_release(&filesys_lock);
 
   if (f_read_bytes != (int) page_read_bytes)
   {
@@ -232,10 +232,10 @@ release_mmap_page (struct page *p) {
   f->pinned = true;
   lock_release(&frames_lock);
 
-  lock_acquire (&filesyslock);
+  lock_acquire (&filesys_lock);
   uint32_t f_write_bytes = file_write_at (p->file, kaddr, p->read_bytes, p->offset);
   ASSERT (f_write_bytes == p->read_bytes);
-  lock_release (&filesyslock);
+  lock_release (&filesys_lock);
 
   /* Writing done, unpin the frame */
   lock_acquire(&frames_lock);
@@ -256,10 +256,10 @@ evict_mmap_page (struct page *p) {
   if (!dirty)
     return;
 
-  lock_acquire (&filesyslock);
+  lock_acquire (&filesys_lock);
   uint32_t f_write_bytes = file_write_at (p->file, kaddr, p->read_bytes, p->offset);
   ASSERT (f_write_bytes == p->read_bytes);
-  lock_release (&filesyslock);
+  lock_release (&filesys_lock);
 }
 
 

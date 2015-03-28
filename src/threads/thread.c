@@ -215,7 +215,7 @@ thread_create (const char *name, int priority,
     ci_->cthread = thread_current();
     hash_insert(&t->parent->children, &ci_->elem);
     hash_init(&t->children, child_info_hash_func, cmp_child_info_less, NULL);
-    hash_init(&t->fds, file_desc_hash_func, cmp_file_desc_less, &filesyslock);
+    hash_init(&t->fds, file_desc_hash_func, cmp_file_desc_less, &filesys_lock);
     hash_init(&t->mapids, mapping_hash_func, cmp_mapping_less, NULL);
     t->fd_seq = 1;
     t->mapid_cnt = 1;

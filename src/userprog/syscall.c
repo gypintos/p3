@@ -21,8 +21,6 @@
 
 #define BUFFER_SPLIT_SIZE 300
 
-
-
 static void syscall_handler (struct intr_frame *);
 struct semaphore exit_sema;
 
@@ -34,7 +32,7 @@ void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  lock_init(&filesyslock);
+  lock_init(&filesys_lock);
   sema_init(&exit_sema, 1);
 }
 
@@ -327,9 +325,9 @@ void exit (int status) {
     lock_release(&exec_list_lock);
 
     /* Close executable */
-    lock_acquire(&filesyslock);
+    lock_acquire(&filesys_lock);
     file_close(t->exe);
-    lock_release(&filesyslock);
+    lock_release(&filesys_lock);
 
     /* Destroy supplementary page table */
     hash_destroy(&t->page_table, page_destructor);
@@ -360,9 +358,9 @@ void exit (int status) {
    passing any given arguments, and returns the new process's
    program id. */
 tid_t exec (const char *file_name){
-    lock_acquire(&filesyslock);
+    lock_acquire(&filesys_lock);
     tid_t child = process_execute (file_name);
-    lock_release(&filesyslock);
+    lock_release(&filesys_lock);
     return child;
 }
 
@@ -373,9 +371,9 @@ int wait (tid_t cid) {
 
 /* Creates a new file called file initially initial_size bytes in size. */
 bool create (const char *file_name, unsigned initial_size) {
-        lock_acquire(&filesyslock);
+        lock_acquire(&filesys_lock);
         int fd = filesys_create(file_name, initial_size);
-        lock_release(&filesyslock);
+        lock_release(&filesys_lock);
         return fd;
     }
 
@@ -388,9 +386,9 @@ bool create (const char *file_name, unsigned initial_size) {
          return -1;
      }
 
-     lock_acquire(&filesyslock);
+     lock_acquire(&filesys_lock);
      struct file *file_ptr = filesys_open(file_name);
-     lock_release(&filesyslock);
+     lock_release(&filesys_lock);
      if (file_ptr == NULL) {
             return -1;
      }
@@ -414,9 +412,9 @@ void add_to_fds(struct thread *t, struct file_desc *opened_file) {
 
  /* Deletes the file called file. Returns true if successful, false otherwise. */
  bool remove (const char *file_name) {
-        lock_acquire(&filesyslock);
+        lock_acquire(&filesys_lock);
         bool removed = filesys_remove(file_name);
-        lock_release(&filesyslock);
+        lock_release(&filesys_lock);
         return removed;
  }
 
@@ -426,9 +424,9 @@ void add_to_fds(struct thread *t, struct file_desc *opened_file) {
      struct file *file_ptr = thread_fd_to_file(fd);
      int size = -1;
      if (file_ptr != NULL) {
-        lock_acquire(&filesyslock);
+        lock_acquire(&filesys_lock);
         size = file_length(file_ptr);
-        lock_release(&filesyslock);
+        lock_release(&filesys_lock);
      }
      return size;
   }
@@ -467,9 +465,9 @@ int read (int fd, void *buffer, unsigned length) {
     struct file *file_ptr = thread_fd_to_file(fd);
 
     if (file_ptr != NULL) {
-        lock_acquire(&filesyslock);
+        lock_acquire(&filesys_lock);
         length = file_read(file_ptr, buffer, length);
-        lock_release(&filesyslock);
+        lock_release(&filesys_lock);
         unlock_buffer(buffer, length);
         return length;
     }
@@ -499,9 +497,9 @@ int write (int fd, const void *buffer, unsigned length) {
     else {
        struct file *file_ptr = thread_fd_to_file(fd);
        if (file_ptr != NULL) {
-           lock_acquire(&filesyslock);
+           lock_acquire(&filesys_lock);
            length = file_write(file_ptr, b, length);
-           lock_release(&filesyslock);
+           lock_release(&filesys_lock);
            unlock_buffer(b, length);
 
            return length;
@@ -519,9 +517,9 @@ void close (int fid) {
     struct hash_elem *e = hash_delete(fds_ptr, &fd.elem);
     if (e == NULL) {return;}
     struct file_desc *fd_ptr = hash_entry(e, struct file_desc, elem);
-    lock_acquire(&filesyslock);
+    lock_acquire(&filesys_lock);
     file_close(fd_ptr->fptr);
-    lock_release(&filesyslock);
+    lock_release(&filesys_lock);
     free(fd_ptr);
 }
 
@@ -530,9 +528,9 @@ void close (int fid) {
 void seek (int fd, unsigned position) {
     struct file *file_ptr = thread_fd_to_file(fd);
     if (file_ptr != NULL) {
-        lock_acquire(&filesyslock);
+        lock_acquire(&filesys_lock);
         file_seek(file_ptr, position);
-        lock_release(&filesyslock);
+        lock_release(&filesys_lock);
     }
 }
 
@@ -543,9 +541,9 @@ unsigned tell (int fd) {
     struct file *file_ptr = thread_fd_to_file(fd);
     unsigned position = -1;
     if (file_ptr != NULL) {
-        lock_acquire(&filesyslock);
+        lock_acquire(&filesys_lock);
         position = file_tell(file_ptr);
-        lock_release(&filesyslock);
+        lock_release(&filesys_lock);
     }
     return position;
 }
@@ -630,9 +628,9 @@ mapid_t mmap (int fd, void *addr) {
 
     /* use file_reopen function to obtain a separate and
      * independent reference to the file */
-    lock_acquire(&filesyslock);
+    lock_acquire(&filesys_lock);
     struct file *refile_ptr = file_reopen(file_ptr);
-    lock_release(&filesyslock);
+    lock_release(&filesys_lock);
     if (refile_ptr == NULL) {
         return MAP_FAILED;
     }
