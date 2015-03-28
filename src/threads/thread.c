@@ -82,8 +82,8 @@ unsigned child_info_hash_func (const struct hash_elem *e, void *aux UNUSED);
 bool cmp_child_info_less(const struct hash_elem *a, const struct hash_elem *b,
                         void *aux UNUSED);
 
-unsigned mapping_hash_func (const struct hash_elem *e, void *aux);
-bool cmp_mapping_less (const struct hash_elem *a, const struct hash_elem *b,
+unsigned id_addr_hash_func (const struct hash_elem *e, void *aux);
+bool cmp_id_addr_less (const struct hash_elem *a, const struct hash_elem *b,
                       void *aux);
 /*************/
 
@@ -652,19 +652,19 @@ bool cmp_child_info_less (const struct hash_elem* a, const struct hash_elem* b,
   return ci_a->cid < ci_b->cid;
 }
 
-/* Use mapping id as the key for hash */
-unsigned mapping_hash_func (const struct hash_elem* e, void* aux UNUSED) 
+/* Use id_addr id as the key for hash */
+unsigned id_addr_hash_func (const struct hash_elem* e, void* aux UNUSED) 
 {
-	struct mapping *mp = hash_entry (e, struct mapping, elem);
+	struct id_addr *mp = hash_entry (e, struct id_addr, elem);
 	return mp->mapid;
 }
 
 /* User mapid as the key for comparing */
-bool cmp_mapping_less (const struct hash_elem *a, const struct hash_elem *b,
+bool cmp_id_addr_less (const struct hash_elem *a, const struct hash_elem *b,
                            void *aux)
 {
-	struct mapping *m_a = hash_entry (a, struct mapping, elem);
-	struct mapping *m_b = hash_entry (b, struct mapping, elem);
+	struct id_addr *m_a = hash_entry (a, struct id_addr, elem);
+	struct id_addr *m_b = hash_entry (b, struct id_addr, elem);
 	return m_a->mapid < m_b->mapid;
 }
 

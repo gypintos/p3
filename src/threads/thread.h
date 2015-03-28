@@ -169,13 +169,13 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 struct child_info {
-  tid_t cid;                 /* Id of the child process */
-  struct thread *cthread;           /* Pointer to the child */
-  int exit_code;              /* Child's exit status */
-  enum child_state state;       /* Child's state */
-  struct hash_elem elem;        /* Hash table element */
-  struct lock wait_lock;          /* Lock guarding child status fields */
-  struct condition wait_cond;    /* Condvar on which paent wait for child status updates */
+  tid_t cid;                 
+  struct thread *cthread;    
+  int exit_code;             
+  enum child_state state;    
+  struct hash_elem elem;     
+  struct lock wait_lock;     
+  struct condition wait_cond; 
 };
 
 struct child_info *find_child_info (struct thread *t, tid_t cid);
@@ -186,7 +186,7 @@ struct file_desc {
   struct hash_elem elem;    /* hash element */
 };
 
-struct mapping {
+struct id_addr {
   int mapid;                  /* Mapping id */
   void *addr;                 /* Virtual address of first page */
   int pnum;                   /* Number of virtual pages */

@@ -23,8 +23,8 @@ void close (int fd);
 void seek (int fd, unsigned position);
 unsigned tell (int fd);
 mapid_t mmap (int fd, void *addr);
-void munmap (mapid_t mapping);
-void munmap_mapping (struct mapping *m, struct thread *t);
+void munmap (mapid_t id_addr);
+void munmap_mapping (struct id_addr *m, struct thread *t);
 
 void retrieve_and_validate_args (int *ptr, int argnum, void **syscall_args_ptr);
 void validate_pointer (void *addr, void *esp, bool writable);

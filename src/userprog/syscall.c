@@ -19,21 +19,21 @@
 #include "vm/frame.h"
 #include "vm/page.h"
 
-#define BUFFER_SPLIT_SIZE 300
+#define BUFFER_SIZE 300
 
 static void syscall_handler (struct intr_frame *);
-struct semaphore exit_sema;
+struct semaphore sys_sema;
 
-void fds_destructor_func (struct hash_elem *e, void *aux);
-void mapids_destructor_func (struct hash_elem *e, void *aux UNUSED);
-void ct_destructor_func (struct hash_elem *e, void *aux UNUSED);
+void remove_fds (struct hash_elem *e, void *aux);
+void remove_mapids (struct hash_elem *e, void *aux UNUSED);
+void remove_child_info (struct hash_elem *e, void *aux UNUSED);
 
 void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init(&filesys_lock);
-  sema_init(&exit_sema, 1);
+  sema_init(&sys_sema, 1);
 }
 
 /* If pointer given as parameter is a null pointer, a pointer to kernel
@@ -312,13 +312,13 @@ void exit (int status) {
     struct thread *t = thread_current();
     printf ("%s: exit(%d)\n", t->name, status);
 
-    /* Clean up mappings */
+    /* Clean up id_addr */
     struct hash *mapids_ptr = &t->mapids;
-    hash_destroy(mapids_ptr, mapids_destructor_func);
+    hash_destroy(mapids_ptr, remove_mapids);
 
     /* Clean up files */
     struct hash *fds_ptr = &t->fds;
-    hash_destroy(fds_ptr, fds_destructor_func);
+    hash_destroy(fds_ptr, remove_fds);
 
     lock_acquire(&exec_list_lock);
     remove_exec_threads_entry(t);
@@ -332,10 +332,10 @@ void exit (int status) {
     /* Destroy supplementary page table */
     hash_destroy(&t->page_table, page_destructor);
 
-    sema_down(&exit_sema);
+    sema_down(&sys_sema);
 
     /* Clean up children list and notify them that parent is exiting */
-    hash_destroy(&thread_current()->children, ct_destructor_func);
+    hash_destroy(&thread_current()->children, remove_child_info);
 
     if (t->parent != NULL) {
         struct thread *p = t->parent;
@@ -350,7 +350,7 @@ void exit (int status) {
             lock_release(&ct->wait_lock);
         }
     }
-    sema_up(&exit_sema);
+    sema_up(&sys_sema);
     thread_exit();
 }
 
@@ -479,14 +479,14 @@ int write (int fd, const void *buffer, unsigned length) {
 
     const char *b = (char *) buffer;
     if (fd == 1) {
-        int it = length / BUFFER_SPLIT_SIZE;
-        int rem = length % BUFFER_SPLIT_SIZE;
+        int it = length / BUFFER_SIZE;
+        int rem = length % BUFFER_SIZE;
         int k;
         for(k = 0; k < it; k++) {
-            putbuf(b + BUFFER_SPLIT_SIZE * k, BUFFER_SPLIT_SIZE);
+            putbuf(b + BUFFER_SIZE * k, BUFFER_SIZE);
         }
         if (rem != 0) {
-            putbuf(b + BUFFER_SPLIT_SIZE * it, rem);
+            putbuf(b + BUFFER_SIZE * it, rem);
         }
         unlock_buffer(b, length);
         return length;
@@ -548,26 +548,25 @@ unsigned tell (int fd) {
     return position;
 }
 
-/* Destructor of the file_desc. Closes respective file within
-   guarded secion and frees memory allocated to file_desc. */
-void fds_destructor_func (struct hash_elem *e, void *aux) {
-    struct file_desc *fd = hash_entry (e, struct file_desc, elem);
-    struct lock *fs_lock = (struct lock *) aux;
-    lock_acquire(fs_lock);
-    file_close(fd->fptr);
-    lock_release(fs_lock);
-    free(fd);
+/* File descriptor destructor */
+void remove_fds (struct hash_elem *e, void *aux) {
+    struct lock *fd_lock = (struct lock *) aux;
+    struct file_desc *fdp = hash_entry (e, struct file_desc, elem);
+    lock_acquire(fd_lock);
+    file_close(fdp->fptr);
+    lock_release(fd_lock);
+    free(fdp);
 }
 
-void mapids_destructor_func (struct hash_elem *e, void *aux UNUSED) {
-    struct mapping *m = hash_entry (e, struct mapping, elem);
+/* Mapping  destructor */
+void remove_mapids (struct hash_elem *e, void *aux UNUSED) {
+    struct id_addr *m = hash_entry (e, struct id_addr, elem);
     munmap_mapping (m, thread_current ());
     free(m);
 }
 
-/* Destructor of the child_info. If child has not exited yet,
-   sets its parent member to NULL. Frees memory. */
-void ct_destructor_func (struct hash_elem *e, void *aux UNUSED) {
+/* child info destructor */
+void remove_child_info (struct hash_elem *e, void *aux UNUSED) {
     struct child_info *ct = hash_entry (e, struct child_info, elem);
     if (ct->cthread != NULL) {
         ct->cthread->parent = NULL;
@@ -650,9 +649,9 @@ mapid_t mmap (int fd, void *addr) {
         naddr += PGSIZE;
     }
 
-    /* create new mapping, add to mapids */
-    struct mapping *m;
-    m = (struct mapping *)malloc(sizeof(struct mapping));
+    /* create new id_addr, add to mapids */
+    struct id_addr *m;
+    m = (struct id_addr *)malloc(sizeof(struct id_addr));
     m->addr = addr;
     m->pnum = page_num;
     do {
@@ -666,16 +665,16 @@ mapid_t mmap (int fd, void *addr) {
     return m->mapid;
 }
 
-/* Unmaps the mapping designated by mapping. */
-void munmap (mapid_t mapping) {
-    struct mapping m_;
-    struct mapping *m;
+/* Unmaps the id_addr designated by id_addr. */
+void munmap (mapid_t id_addr) {
+    struct id_addr m_;
+    struct id_addr *m;
     struct hash_elem *e;
     struct thread *t = thread_current();
-    m_.mapid = mapping;
+    m_.mapid = id_addr;
     e = hash_find(&t->mapids, &m_.elem);
     if (e != NULL) {
-        m = hash_entry(e, struct mapping, elem);
+        m = hash_entry(e, struct id_addr, elem);
     } else {
         return;
     }
@@ -683,7 +682,7 @@ void munmap (mapid_t mapping) {
     munmap_mapping(m, t);
 }
 
-void munmap_mapping (struct mapping *m, struct thread *t) {
+void munmap_mapping (struct id_addr *m, struct thread *t) {
     void *addr = m->addr;
     int i;
     /* write back to file */
