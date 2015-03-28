@@ -273,55 +273,8 @@ void halt (void) {
 }
 
 void exit (int status) {
-    // struct thread *t = thread_current();
-    // printf ("%s: exit(%d)\n", t->name, status);
-
-    // /* Clean up id_addr */
-    // struct hash *mapids_ptr = &t->mapids;
-    // hash_destroy(mapids_ptr, remove_mapids);
-
-    // /* Clean up files */
-    // struct hash *fds_ptr = &t->fds;
-    // hash_destroy(fds_ptr, remove_fds);
-
-    // lock_acquire(&exec_list_lock);
-    // remove_exec_threads_entry(t);
-    // lock_release(&exec_list_lock);
-
-    // /* Close executable */
-    // lock_acquire(&filesys_lock);
-    // file_close(t->exe);
-    // lock_release(&filesys_lock);
-
-    // /* Destroy supplementary page table */
-    // hash_destroy(&t->page_table, page_destructor);
-
-    // sema_down(&sys_sema);
-
-    //  Clean up children list and notify them that parent is exiting 
-    // hash_destroy(&thread_current()->children, remove_child_info);
-
-    // if (t->parent != NULL) {
-    //     struct thread *p = t->parent;
-    //     //signal exit status to the parent
-    //     struct child_info *ct = find_child_info(p, thread_current()->tid);
-    //     if (ct != NULL) {
-    //         lock_acquire(&ct->wait_lock);
-    //         ct->exit_code = status;
-    //         ct->state = CHILD_EXITING;
-    //         ct->cthread = NULL;
-    //         cond_signal(&ct->wait_cond, &ct->wait_lock);
-    //         lock_release(&ct->wait_lock);
-    //     }
-    // }
-    // sema_up(&sys_sema);
-    // thread_exit();
-
-
     struct thread* curr= thread_current();
-
     printf ("%s: exit(%d)\n", curr->name, status);
-
     hash_destroy(&curr->mapids, remove_mapids);
     hash_destroy(&curr->fds, remove_fds);
 
@@ -329,7 +282,6 @@ void exit (int status) {
     remove_exec_threads_entry(curr);
     lock_release(&exec_list_lock);
 
-    /* Close executable */
     lock_acquire(&filesys_lock);
     file_close(curr->exe);
     lock_release(&filesys_lock);
@@ -352,31 +304,26 @@ void exit (int status) {
     }
     sema_up(&sys_sema);
     thread_exit();
-
 }
 
-/* Runs the executable whose name is given in cmd_line,
-   passing any given arguments, and returns the new process's
-   program id. */
 tid_t exec (const char *file_name){
     lock_acquire(&filesys_lock);
-    tid_t child = process_execute (file_name);
+    tid_t pid = process_execute(file_name);
     lock_release(&filesys_lock);
-    return child;
+    return pid;
 }
 
-/* Waits for a child process pid and returns the child's exit status. */
-int wait (tid_t cid) {
-    return process_wait(cid);
+int wait (tid_t pid) {
+    return process_wait(pid);
 }
 
-/* Creates a new file called file initially initial_size bytes in size. */
 bool create (const char *file_name, unsigned initial_size) {
-        lock_acquire(&filesys_lock);
-        int fd = filesys_create(file_name, initial_size);
-        lock_release(&filesys_lock);
-        return fd;
-    }
+    if(!file_name) exit(-1);
+    lock_acquire(&filesys_lock);
+    int result = filesys_create(file_name, initial_size);
+    lock_release(&filesys_lock);
+    return result;
+}
 
 int open (const char *file_name) {
     struct thread* curr = thread_current();
