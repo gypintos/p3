@@ -162,12 +162,12 @@ syscall_handler (struct intr_frame *f)
             void *args[1];
             get_args(syscall, 1, args);
             int file_sz = filesize(*(int *)args[0]);
-            if (file_sz == -1) {
-                exit (-1);
-            }
-            else {
+            // if (file_sz == -1) {
+            //     exit (-1);
+            // }
+            // else {
                 f->eax = file_sz;
-            }
+            // }
             release_args(syscall, 1, args);
             break;
             }
@@ -342,17 +342,7 @@ int open (const char *file_name) {
     return fd_open->fid; 
 }
 
-/* Allocates new file descriptor id, assigns it to opened_file file_desc
-   and adds file_desc to the hash table of the thread pointed to by t.*/
 void insert_fd(struct thread *t, struct file_desc *fd) {
-     // do {
-     //         if (t->fd_seq == USHRT_MAX) {
-     //             t->fd_seq = 1;
-     //         }
-     //         fd->fid = ++t->fd_seq;
-     //     }
-     // while (hash_insert(&t->fds, &fd->elem) != NULL);
-
      fd->fid = ++t->fd_seq;
      while(!hash_insert(&t->fds, &fd->elem)){
         ;
@@ -360,26 +350,22 @@ void insert_fd(struct thread *t, struct file_desc *fd) {
 
 }
 
-
- /* Deletes the file called file. Returns true if successful, false otherwise. */
  bool remove (const char *file_name) {
-        lock_acquire(&filesys_lock);
-        bool removed = filesys_remove(file_name);
-        lock_release(&filesys_lock);
-        return removed;
+    lock_acquire(&filesys_lock);
+    bool result = filesys_remove(file_name);
+    lock_release(&filesys_lock);
+    return result;
  }
 
- /* Returns the size, in bytes, of the file open as fd, -1
-    if process does not own file descriptor*/
  int filesize (int fd) {
-     struct file *file_ptr = get_file_by_id(fd);
-     int size = -1;
-     if (file_ptr != NULL) {
-        lock_acquire(&filesys_lock);
-        size = file_length(file_ptr);
-        lock_release(&filesys_lock);
+    lock_acquire(&filesys_lock);
+    struct file *fptr = get_file_by_id(fd);
+    int fsize = -1;
+    if (fptr != NULL) {
+        fsize = file_length(fptr);
      }
-     return size;
+     lock_release(&filesys_lock);
+     return fsize;
   }
 
  /* Returns pointer to a file if it is opened by current thread,
