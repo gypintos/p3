@@ -1,5 +1,6 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
+#include "threads/thread.h"
 
 typedef int mapid_t;
 struct lock filesyslock;
