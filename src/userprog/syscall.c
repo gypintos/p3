@@ -351,7 +351,7 @@ void exit (int status) {
         }
     }
     sema_up(&sys_sema);
-    thread_eixt();
+    thread_exit();
 
 }
 
