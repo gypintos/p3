@@ -472,15 +472,15 @@ void close (int fid) {
     free(fd_ptr);
 }
 
-/* Changes the next byte to be read or written in open file fd
-   to position, expressed in bytes from the beginning of the file.*/
-void seek (int fd, unsigned position) {
-    struct file *file_ptr = get_file_by_id(fd);
-    if (file_ptr != NULL) {
-        lock_acquire(&filesys_lock);
-        file_seek(file_ptr, position);
+void seek (int fd, unsigned pos) {
+    lock_acquire(&filesys_lock);
+    struct file *fptr = get_file_by_id(fd);
+    if (!fptr){
         lock_release(&filesys_lock);
+        return;
     }
+    file_seek(fptr, pos);
+    lock_release(&filesys_lock);
 }
 
 
