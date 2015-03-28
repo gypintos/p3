@@ -352,7 +352,7 @@ int open (const char *file_name) {
         return -1;
     }
     lock_release(&filesys_lock);
-    struct fild_desc *fd_open = malloc(sizeof(struct file_desc));
+    struct file_desc *fd_open = malloc(sizeof(struct file_desc));
     fd_open->fptr = f_ptr;
     add_to_fds(curr, fd_open);
     return fd_open->fid;
