@@ -337,10 +337,10 @@ void exit (int status) {
     hash_destroy(&curr->page_table, page_destructor);
 
     sema_down(&sys_sema);
-    hash_destroy(&curr->children, remove_child_info);
+    hash_destroy(&thread_current()->children, remove_child_info);
     if (curr->parent != NULL){
         struct thread *p = curr->parent;
-        struct child_info* ci = find_child_info(p, p->tid);
+        struct child_info* ci = find_child_info(p, thread_current()->tid);
         if (ci){
             lock_acquire(&ci->wait_lock);
             ci->state = CHILD_EXITING;
