@@ -486,39 +486,57 @@ setup_stack (void **esp, char *file_name, char *save_ptr)
 	  return success;
   }
 
-  char* token = (char *) file_name;
-  char** argv = malloc(2 * sizeof (char *));
-  int argc = 0, size = 2; 
-  while(token != NULL) {
+  int argc = 1, size = 1;
+  *esp -= strlen(file_name)+1;
+  memcpy(*esp, file_name, strlen(file_name));
+  char** argv = malloc(sizeof(char*));
+  int i =0;
+  argv[i] = *esp;
+
+  char *token = strtok_r (NULL, " ", &save_ptr);
+  while(token!=NULL){
     *esp -= strlen(token) + 1;
-    argv[argc] = *esp;
-    argc++;
-   if (argc >= size){
-      size *= 2;
-      argv = realloc(argv, size * sizeof(char *));
+    memcpy(*esp, token, strlen(token));
+    size++;
+    if (size > argc){
+      argc *= 2;
+      char **tmp = (char**) realloc(argv, argc * sizeof(char *));
+      if(!tmp){
+        free(argv);
+        return false;
+      }
     }
-    memcpy(*esp, token, strlen(token)+1);
-    if (save_ptr == NULL) break;
-    token = strtok_r (NULL, " ", save_ptr);
+    argv = tmp;
+    i++;
+    argv[i] = *esp;    
   }
+
+  argc = size;
+  char **tmp = (char**) realloc(argv, (argc+1) * sizeof(char *));
+  if(!tmp){
+    free(argv);
+    return false;
+  }
+  argv = tmp;
   argv[argc] = 0;
-  int i = (size_t) *esp % 4;
-  if (i){
-    *esp -= i;
-    memcpy(*esp, &argv[argc], i);
-  }
-  for (i = argc; i >= 0; i--){
+
+  *esp -= sizeof(uint8_t) * ((size_t) *esp % WORD) ;
+
+  int j = argc + 1;
+  while(j >= 0; j--){
     *esp -= sizeof(char *);
-    memcpy(*esp, &argv[i], sizeof(char *));
+    memcpy(*esp, &argv[j], sizeof(char *));
   }
-  token = *esp; 
-  *esp -= sizeof(char **);
-  memcpy(*esp, &token, sizeof(char **));
+  free(argv);
+  char ** ptr = *esp; 
+  *esp -= sizeof(char *);
+  memcpy(*esp, &ptr, sizeof(char *));
+
   *esp -= sizeof(int);
   memcpy(*esp, &argc, sizeof(int));
-  *esp -= sizeof(void *);
-  memcpy(*esp, &argv[argc], sizeof(void *));
-  free(argv);
+
+  *esp -= sizeof(void*);
+  memcpy(*esp,  &argv[argc], sizeof(void *));
 
   return success;
 }
@@ -532,7 +550,7 @@ setup_stack (void **esp, char *file_name, char *save_ptr)
    with palloc_get_page().
    Returns true on success, false if UPAGE is already mapped or
    if memory allocation fails. */
-bool
+static bool
 install_page (void *upage, void *kpage, bool writable)
 {
   struct thread *t = thread_current ();
