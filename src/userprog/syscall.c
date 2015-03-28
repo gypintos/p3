@@ -273,49 +273,86 @@ void halt (void) {
 }
 
 void exit (int status) {
-    struct thread *t = thread_current();
-    printf ("%s: exit(%d)\n", t->name, status);
+    // struct thread *t = thread_current();
+    // printf ("%s: exit(%d)\n", t->name, status);
 
-    /* Clean up id_addr */
-    struct hash *mapids_ptr = &t->mapids;
-    hash_destroy(mapids_ptr, remove_mapids);
+    // /* Clean up id_addr */
+    // struct hash *mapids_ptr = &t->mapids;
+    // hash_destroy(mapids_ptr, remove_mapids);
 
-    /* Clean up files */
-    struct hash *fds_ptr = &t->fds;
-    hash_destroy(fds_ptr, remove_fds);
+    // /* Clean up files */
+    // struct hash *fds_ptr = &t->fds;
+    // hash_destroy(fds_ptr, remove_fds);
+
+    // lock_acquire(&exec_list_lock);
+    // remove_exec_threads_entry(t);
+    // lock_release(&exec_list_lock);
+
+    // /* Close executable */
+    // lock_acquire(&filesys_lock);
+    // file_close(t->exe);
+    // lock_release(&filesys_lock);
+
+    // /* Destroy supplementary page table */
+    // hash_destroy(&t->page_table, page_destructor);
+
+    // sema_down(&sys_sema);
+
+    //  Clean up children list and notify them that parent is exiting 
+    // hash_destroy(&thread_current()->children, remove_child_info);
+
+    // if (t->parent != NULL) {
+    //     struct thread *p = t->parent;
+    //     //signal exit status to the parent
+    //     struct child_info *ct = find_child_info(p, thread_current()->tid);
+    //     if (ct != NULL) {
+    //         lock_acquire(&ct->wait_lock);
+    //         ct->exit_code = status;
+    //         ct->state = CHILD_EXITING;
+    //         ct->cthread = NULL;
+    //         cond_signal(&ct->wait_cond, &ct->wait_lock);
+    //         lock_release(&ct->wait_lock);
+    //     }
+    // }
+    // sema_up(&sys_sema);
+    // thread_exit();
+
+
+    struct thread* curr= thread_current();
+
+    printf ("%s: exit(%d)\n", curr->name, status);
+
+    hash_destroy(&curr->mapids, remove_mapids);
+    hash_destroy(curr->fds, remove_fds);
 
     lock_acquire(&exec_list_lock);
-    remove_exec_threads_entry(t);
+    remove_exec_threads_entry(curr);
     lock_release(&exec_list_lock);
 
     /* Close executable */
     lock_acquire(&filesys_lock);
-    file_close(t->exe);
+    file_close(curr->exe);
     lock_release(&filesys_lock);
 
-    /* Destroy supplementary page table */
-    hash_destroy(&t->page_table, page_destructor);
+    hash_destroy(&curr->page_table, page_destructor);
 
     sema_down(&sys_sema);
-
-    /* Clean up children list and notify them that parent is exiting */
-    hash_destroy(&thread_current()->children, remove_child_info);
-
-    if (t->parent != NULL) {
-        struct thread *p = t->parent;
-        //signal exit status to the parent
-        struct child_info *ct = find_child_info(p, thread_current()->tid);
-        if (ct != NULL) {
-            lock_acquire(&ct->wait_lock);
-            ct->exit_code = status;
-            ct->state = CHILD_EXITING;
-            ct->cthread = NULL;
-            cond_signal(&ct->wait_cond, &ct->wait_lock);
-            lock_release(&ct->wait_lock);
+    hash_destroy(&curr->childern, remove_child_info);
+    if (curr->parrent != NULL){
+        struct thread *p = curr->parrent;
+        struct child_info* ci = find_child_info(p, p->tid);
+        if (ci){
+            lock_acquire(&ci->wait_lock);
+            ci->state = CHILD_EXITING;
+            ci->cthread = NULL;
+            ci->exit_code = status;
+            cond_signal(&ci->wait_cond, &ci->wait_lock);
+            lock_release(&ci->wait_lock);
         }
     }
     sema_up(&sys_sema);
-    thread_exit();
+    thread_eixt();
+
 }
 
 /* Runs the executable whose name is given in cmd_line,
