@@ -341,25 +341,41 @@ bool create (const char *file_name, unsigned initial_size) {
         return fd;
     }
 
- /* Opens the file called file. Returns a nonnegative integer
-   file descriptor or -1 if the file could not be opened.*/
- int open (const char *file_name) {
-     struct thread *t = thread_current();
+int open (const char *file_name) {
+    struct thread* curr = thread_current();
+    if (hash_size(&curr->fds) == MAX_OPEN_FILES)
+        return -1;
+    lock_acquire(&filesys_lock);
+    struct file* f_ptr = filesys_open(file_name);
+    if (!f_ptr){
+        lock_release(&filesys_lock);
+        return -1
+    }
+    lock_release(&filesys_lock);
+    struct fild_desc *fd_open = malloc(sizeof(struct file_desc));
+    fd_open->fptr = f_ptr;
+    add_to_fds(curr, fd_open);
+    return fd_open->fid;
 
-     if (hash_size(&t->fds) == MAX_FILES) {
-         return -1;
-     }
 
-     lock_acquire(&filesys_lock);
-     struct file *file_ptr = filesys_open(file_name);
-     lock_release(&filesys_lock);
-     if (file_ptr == NULL) {
-            return -1;
-     }
-     struct file_desc *opened_file = malloc(sizeof (struct file_desc));
-     opened_file->fptr = file_ptr;
-     add_to_fds(t, opened_file);
-     return opened_file->fid;
+     // struct thread *t = thread_current();
+     // if (hash_size(&t->fds) == MAX_OPEN_FILES) {
+     //     return -1;
+     // }
+     // lock_acquire(&filesys_lock);
+     // struct file *file_ptr = filesys_open(file_name);
+     // lock_release(&filesys_lock);
+     // if (file_ptr == NULL) {
+     //        return -1;
+     // }
+     // struct file_desc *opened_file = malloc(sizeof (struct file_desc));
+     // opened_file->fptr = file_ptr;
+     // add_to_fds(t, opened_file);
+     // return opened_file->fid;
+
+
+
+    
 }
 /* Allocates new file descriptor id, assigns it to opened_file file_desc
    and adds file_desc to the hash table of the thread pointed to by t.*/
@@ -439,37 +455,6 @@ int read (int fd, void *buffer, unsigned length) {
 }
 
 int write (int fd, const void *buffer, unsigned length) {
-    // const char *b = (char *) buffer;
-    // if (fd == STDOUT_FILENO) {
-    //     int it = length / BUFFER_SIZE;
-    //     int rem = length % BUFFER_SIZE;
-    //     int k;
-    //     for(k = 0; k < it; k++) {
-    //         putbuf(b + BUFFER_SIZE * k, BUFFER_SIZE);
-    //     }
-    //     if (rem != 0) {
-    //         putbuf(b + BUFFER_SIZE * it, rem);
-    //     }
-    //     release_buf(b, length);
-    //     return length;
-    // }
-    // else if (fd == STDIN_FILENO) {
-    //     return 0;
-    // }
-    // else {
-    //    struct file *file_ptr = get_file_by_id(fd);
-    //    if (file_ptr != NULL) {
-    //        lock_acquire(&filesys_lock);
-    //        length = file_write(file_ptr, b, length);
-    //        lock_release(&filesys_lock);
-    //        release_buf(b, length);
-
-    //        return length;
-    //     }
-    //     return 0;
-    // }
-
-    // const char *bp = (char*) buffer;
     if (fd == STDIN_FILENO) {
         return 0;
     } else if (fd == STDOUT_FILENO){
