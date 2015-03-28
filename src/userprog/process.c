@@ -523,9 +523,10 @@ setup_stack (void **esp, char *file_name, char *save_ptr)
   *esp -= sizeof(uint8_t) * ((size_t) *esp % WORD) ;
 
   int j = argc + 1;
-  while(j >= 0; j--){
+  while(j >= 0){
     *esp -= sizeof(char *);
     memcpy(*esp, &argv[j], sizeof(char *));
+    j--;
   }
   free(argv);
   char ** ptr = *esp; 
