@@ -408,9 +408,9 @@ int read (int fd, void *buffer, unsigned length) {
         return -1;
     } else if (fd == STDIN_FILENO){
         int i;
+        char *tmp = (char *) buffer;
         for( i = 0; i < length; i++){
-            buffer[i] = input_getc();
-
+            tmp[i] = input_getc();
         }
         release_buf(buffer, length);
         return length;
