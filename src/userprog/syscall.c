@@ -483,18 +483,24 @@ void seek (int fd, unsigned pos) {
     lock_release(&filesys_lock);
 }
 
-
-/* Returns the position of the next byte to be read or written
- in open file fd, expressed in bytes from the beginning of the file. */
 unsigned tell (int fd) {
-    struct file *file_ptr = get_file_by_id(fd);
-    unsigned position = -1;
-    if (file_ptr != NULL) {
-        lock_acquire(&filesys_lock);
-        position = file_tell(file_ptr);
+    // struct file *file_ptr = get_file_by_id(fd);
+    // unsigned position = -1;
+    // if (file_ptr != NULL) {
+    //     lock_acquire(&filesys_lock);
+    //     position = file_tell(file_ptr);
+    //     lock_release(&filesys_lock);
+    // }
+    // return position;
+    lock_acquire(&filesys_lock);
+    struct file* fptr = get_file_by_id(fid);
+    if (!fptr){
         lock_release(&filesys_lock);
+        return -1;
     }
-    return position;
+    unsigned pos = file_tell(fptr);
+    lock_release(&filesys_lock);
+    return pos;
 }
 
 /* File descriptor destructor */
