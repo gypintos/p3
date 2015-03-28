@@ -68,8 +68,21 @@ void validate_addr (void *addr, void *esp, bool writable) {
     } else {
         exit(-1);
     }
-
 }
+
+void validate_buf (char* buf_ptr, int size, void* esp, bool writable) {
+    validate_addr (buf_ptr, esp, writable);
+    int page_cnt= size / PGSIZE;
+    int remain= size % PGSIZE;
+    int i;
+    for (i = 1; i <= page_cnt; i++) {
+        validate_addr(buf_ptr+ i * PGSIZE, esp, writable);
+    }
+    if (remain > 0) {
+        validate_addr(buf_ptr+ size, esp, writable);
+    }
+}
+
 
 /* Resolves the called function from system call number,
  * validates arguments, passes control to the called function and
@@ -87,19 +100,19 @@ syscall_handler (struct intr_frame *f)
         case SYS_WRITE: {
             void *args[3];
             get_args(syscall, 3, args);
-            char *buff_ptr = (char *)*(int *)args[1];
-            validate_buffer (buff_ptr, *(int *)args[2], NULL, /* Writeable */ false);
-            f->eax = write (*(int *)args[0], buff_ptr, *(int *)args[2]);
-            unlock_args_memory(syscall, 3, args);
+            char *buf_ptr = (char *)*(int *)args[1];
+            validate_buf (buf_ptr, *(int *)args[2], NULL, /* Writeable */ false);
+            f->eax = write (*(int *)args[0], buf_ptr, *(int *)args[2]);
+            release_args(syscall, 3, args);
             break;
         }
         case SYS_OPEN: {
             void *args[1];
             get_args(syscall, 1, args);
-            char *buff_ptr = (char *)*(int *)args[0];
-            validate_addr(buff_ptr, f->esp, /* Writeable */ false);
-            f->eax = open (buff_ptr);
-            unlock_args_memory(syscall, 1, args);
+            char *buf_ptr = (char *)*(int *)args[0];
+            validate_addr(buf_ptr, f->esp, /* Writeable */ false);
+            f->eax = open (buf_ptr);
+            release_args(syscall, 1, args);
             break;
         }
         case SYS_EXIT: {
@@ -112,37 +125,37 @@ syscall_handler (struct intr_frame *f)
         case SYS_EXEC: {
             void *args[1];
             get_args(syscall, 1, args);
-            char *buff_ptr = (char *)*(int *)args[0];
-            validate_addr(buff_ptr, f->esp, /* Writeable */ false);
-            int cid = exec(buff_ptr);
+            char *buf_ptr = (char *)*(int *)args[0];
+            validate_addr(buf_ptr, f->esp, /* Writeable */ false);
+            int cid = exec(buf_ptr);
             f->eax = cid;
-            unlock_args_memory(syscall, 1, args);
+            release_args(syscall, 1, args);
             break;
         }
         case SYS_WAIT: {
             void *args[1];
             get_args(syscall, 1, args);
             f->eax = wait(*(int *) args[0]);
-            unlock_args_memory(syscall, 1, args);
+            release_args(syscall, 1, args);
             break;
         }
         case SYS_CREATE: {
             // File system code checks for name length, so we do not need to.
             void *args[2];
             get_args(syscall, 2, args);
-            char *buff_ptr = (char *)*(int *)args[0];
-            validate_addr(buff_ptr, f->esp, /* Writeable */ false);
-            f->eax = create(buff_ptr, *(int *)args[1]);
-            unlock_args_memory(syscall, 2, args);
+            char *buf_ptr = (char *)*(int *)args[0];
+            validate_addr(buf_ptr, f->esp, /* Writeable */ false);
+            f->eax = create(buf_ptr, *(int *)args[1]);
+            release_args(syscall, 2, args);
             break;
             }
         case SYS_REMOVE: {
             void *args[1];
             get_args(syscall, 1, args);
-            char *buff_ptr = (char *)*(int *)args[0];
-            validate_addr(buff_ptr, f->esp, /* Writeable */ false);
-            f->eax = remove (buff_ptr);
-            unlock_args_memory(syscall, 1, args);
+            char *buf_ptr = (char *)*(int *)args[0];
+            validate_addr(buf_ptr, f->esp, /* Writeable */ false);
+            f->eax = remove (buf_ptr);
+            release_args(syscall, 1, args);
             break;
             }
         case SYS_FILESIZE: {
@@ -155,51 +168,51 @@ syscall_handler (struct intr_frame *f)
             else {
                 f->eax = file_sz;
             }
-            unlock_args_memory(syscall, 1, args);
+            release_args(syscall, 1, args);
             break;
             }
         case SYS_READ: {
             void *args[3];
             get_args(syscall, 3, args);
-            char *buff_ptr = (char *)*(int *)args[1];
-            validate_buffer(buff_ptr, *(unsigned *)args[2], f->esp, true);
-            f->eax = read (*(int *)args[0], buff_ptr, *(unsigned *)args[2]);
-            unlock_args_memory(syscall, 3, args);
+            char *buf_ptr = (char *)*(int *)args[1];
+            validate_buf(buf_ptr, *(unsigned *)args[2], f->esp, true);
+            f->eax = read (*(int *)args[0], buf_ptr, *(unsigned *)args[2]);
+            release_args(syscall, 3, args);
             break;
         }
         case SYS_SEEK: {
             void *args[2];
             get_args(syscall, 2, args);
             seek (*(int *)args[0], *(unsigned *)args[1]);
-            unlock_args_memory(syscall, 2, args);
+            release_args(syscall, 2, args);
             break;
             }
         case SYS_TELL: {
             void *args[1];
             get_args(syscall, 1, args);
             f->eax = tell(*(int *)args[0]);
-            unlock_args_memory(syscall, 1, args);
+            release_args(syscall, 1, args);
             break;
             }
         case SYS_CLOSE: {
             void *args[1];
             get_args(syscall, 1, args);
             close (*(int *)args[0]);
-            unlock_args_memory(syscall, 1, args);
+            release_args(syscall, 1, args);
             break;
         }
         case SYS_MMAP: {
             void *args[2];
             get_args(syscall, 2, args);
             f->eax = mmap(*(int *)args[0], (char *)*(int *)args[1]);
-            unlock_args_memory(syscall, 2, args);
+            release_args(syscall, 2, args);
             break;
         }
         case SYS_MUNMAP: {
             void *args[1];
             get_args(syscall, 1, args);
             munmap((mapid_t)*(int *)args[0]);
-            unlock_args_memory(syscall, 1, args);
+            release_args(syscall, 1, args);
             break;
         }
     }
@@ -217,57 +230,39 @@ void get_args (int *ptr, int count, void **argv) {
     }
 }
 
-/* Retrieves arguments for system call from the frame.
-    Validates pointers, locks corresponding frames*/
-void unlock_args_memory (int *ptr, int argnum, void **syscall_args_ptr) {
-    int i = 0;
-    while (argnum > 0) {
-        void *arg_ptr = (void *) ++ptr;
+void release_args (int *ptr, int count, void **argv) {
+    int i;
+    for (i = 0; i < count; i++){
+        void* tmp_ptr = (void*) ++ptr;
         lock_acquire(&frames_lock);
-        struct page *p = page_lookup(arg_ptr, thread_current());
-        if (p && p->loaded) {
-            struct frame *f = frame_lookup(p->kaddr);
-            f->locked = false;
+        struct page *p = page_lookup(ptr, thread_current());
+        if (p && p->loaded){
+            struct frame *fm = frame_lookup(p->kaddr);
+            fm->locked = false;
         }
-        lock_release(&frames_lock);
-        syscall_args_ptr[i] = arg_ptr;
-        i++;
-        argnum--;
+        lock_release(&frame_lock);
+        argv[i] = tmp_ptr;
     }
 }
 
-/* Validates start and all pages that buffer occupies. */
-void validate_buffer (char* buff_ptr, int size, void* esp, bool writable) {
-    validate_addr (buff_ptr, esp, writable);
-    int pages = size / PGSIZE;
-    int rest = size % PGSIZE;
-    int k;
-    for (k = 1; k <= pages; k++) {
-        validate_addr (buff_ptr + k * PGSIZE, esp, writable);
-    }
-    if (rest != 0) {
-        validate_addr (buff_ptr + size, esp, writable);
-    }
-}
 
-void unlock_buffer (const char* buff_ptr, int size) {
+void release_buf (const char* buf_ptr, int size) {
     lock_acquire(&frames_lock);
-    struct page *p = page_lookup(buff_ptr, thread_current());
-    struct frame *f = frame_lookup(p->kaddr);
-
-    f->locked = false;
-    int pages = size / PGSIZE;
-    int rest = size % PGSIZE;
-    int k;
-    for (k = 1; k <= pages; k++) {
-        p = page_lookup(buff_ptr + k * PGSIZE, thread_current());
-        f = frame_lookup(p->kaddr);
-        f->locked = false;
+    struct page  *p  = page_lookup(buf_ptr, thread_current());
+    struct frame *fm = frame_lookup(p->kaddr);
+    fm->locked = false;
+    int page_cnt = size/PGSIZE;
+    int remain   = size%PGSIZE;
+    int i;
+    for (i= 1; i <= page_cnt; i++) {
+        p = page_lookup(buf_ptr + i * PGSIZE, thread_current());
+        fm = frame_lookup(p->kaddr);
+        fm->locked = false;
     }
-    if (rest != 0) {
-        p = page_lookup(buff_ptr + size, thread_current());
-        f = frame_lookup(p->kaddr);
-        f->locked = false;
+    if (remain > 0) {
+        p = page_lookup(buf_ptr + size, thread_current());
+        fm = frame_lookup(p->kaddr);
+        fm->locked = false;
     }
     cond_signal(&frames_locked, &frames_lock);
     lock_release(&frames_lock);
@@ -432,7 +427,7 @@ int read (int fd, void *buffer, unsigned length) {
             i++;
             length--;
         }
-        unlock_buffer(buffer, length);
+        release_buf(buffer, length);
         return i;
     }
     struct file *file_ptr = thread_fd_to_file(fd);
@@ -441,7 +436,7 @@ int read (int fd, void *buffer, unsigned length) {
         lock_acquire(&filesys_lock);
         length = file_read(file_ptr, buffer, length);
         lock_release(&filesys_lock);
-        unlock_buffer(buffer, length);
+        release_buf(buffer, length);
         return length;
     }
     return -1;
@@ -461,7 +456,7 @@ int write (int fd, const void *buffer, unsigned length) {
         if (rem != 0) {
             putbuf(b + BUFFER_SIZE * it, rem);
         }
-        unlock_buffer(b, length);
+        release_buf(b, length);
         return length;
     }
     else if (fd == 0) {
@@ -473,7 +468,7 @@ int write (int fd, const void *buffer, unsigned length) {
            lock_acquire(&filesys_lock);
            length = file_write(file_ptr, b, length);
            lock_release(&filesys_lock);
-           unlock_buffer(b, length);
+           release_buf(b, length);
 
            return length;
         }

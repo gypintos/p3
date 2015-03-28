@@ -27,10 +27,10 @@ void munmap (mapid_t id_addr);
 void munmap_mapping (struct id_addr *m, struct thread *t);
 
 void get_args (int *ptr, int argnum, void **syscall_args_ptr);
-void validate_pointer (void *addr, void *esp, bool writable);
-void validate_buffer (char* buff_ptr, int size, void *esp, bool writeable);
-void unlock_buffer (const char* buff_ptr, int size);
-void unlock_args_memory (int *ptr, int argnum, void **syscall_args_ptr);
+void validate_addr (void *addr, void *esp, bool writable);
+void validate_buf (char* buff_ptr, int size, void *esp, bool writeable);
+void release_buf (const char* buff_ptr, int size);
+void release_args (int *ptr, int argnum, void **syscall_args_ptr);
 
 /* Map region identifier. */
 
