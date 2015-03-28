@@ -21,8 +21,7 @@
 
 #define BUFFER_SPLIT_SIZE 300
 
-struct lock filesyslock;
-/* Map region identifier. */
+
 
 static void syscall_handler (struct intr_frame *);
 struct semaphore exit_sema;
@@ -236,7 +235,6 @@ syscall_handler (struct intr_frame *f)
 
 /* Retrieves arguments for system call from the frame.
     Validates pointers, locks corresponding frames*/
-static
 void retrieve_and_validate_args (int *ptr, int argnum, void **syscall_args_ptr) {
     int i = 0;
     while (argnum > 0) {
@@ -250,7 +248,6 @@ void retrieve_and_validate_args (int *ptr, int argnum, void **syscall_args_ptr) 
 
 /* Retrieves arguments for system call from the frame.
     Validates pointers, locks corresponding frames*/
-static
 void unlock_args_memory (int *ptr, int argnum, void **syscall_args_ptr) {
     int i = 0;
     while (argnum > 0) {
