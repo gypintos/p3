@@ -323,7 +323,7 @@ void exit (int status) {
     printf ("%s: exit(%d)\n", curr->name, status);
 
     hash_destroy(&curr->mapids, remove_mapids);
-    hash_destroy(curr->fds, remove_fds);
+    hash_destroy(&curr->fds, remove_fds);
 
     lock_acquire(&exec_list_lock);
     remove_exec_threads_entry(curr);
