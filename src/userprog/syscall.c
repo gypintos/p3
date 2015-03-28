@@ -457,36 +457,20 @@ int write (int fd, const void *buffer, unsigned length) {
 
 }
 
-/*Closes a file, if process owns file descriptor.
-  Removes file descriptor from the list of the process.*/
+
 void close (int fid) {
-
-    // struct file_desc fd;
-    // fd.fid = fid;
-    // struct hash *fds_ptr = &thread_current()->fds;
-    // struct hash_elem *e = hash_delete(fds_ptr, &fd.elem);
-    // if (e == NULL) {return;}
-    // struct file_desc *fd_ptr = hash_entry(e, struct file_desc, elem);
-    // lock_acquire(&filesys_lock);
-    // file_close(fd_ptr->fptr);
-    // lock_release(&filesys_lock);
-    // free(fd_ptr);
-
     struct file_desc fd;
     fd.fid = fid;
     struct hash_elem* elem = hash_delete(&thread_current()->fds, &fd.elem);
     if (!elem){
         return;  
     } else {
-        lock_acquire(&filesys_lock);
         struct file_desc* fdp = hash_entry(elem, struct file_desc, elem);
+        lock_acquire(&filesys_lock);
         file_close(fdp->fptr);
         lock_release(&filesys_lock);
         free(fdp);
     } 
-
-
-
 }
 
 void seek (int fd, unsigned pos) {
@@ -501,14 +485,6 @@ void seek (int fd, unsigned pos) {
 }
 
 unsigned tell (int fd) {
-    // struct file *file_ptr = get_file_by_id(fd);
-    // unsigned position = -1;
-    // if (file_ptr != NULL) {
-    //     lock_acquire(&filesys_lock);
-    //     position = file_tell(file_ptr);
-    //     lock_release(&filesys_lock);
-    // }
-    // return position;
     lock_acquire(&filesys_lock);
     struct file* fptr = get_file_by_id(fd);
     if (!fptr){
