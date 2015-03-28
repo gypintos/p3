@@ -11,7 +11,7 @@
 
 #define STACK_MAX_SIZE 0x800000
 
-#define USER_VADDR_BOTTOM ((void *) 0x08048000)
+#define USER_VADDR_BASE ((void *) 0x08048000)
 
 void exception_init (void);
 void exception_print_stats (void);

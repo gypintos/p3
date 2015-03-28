@@ -36,64 +36,39 @@ syscall_init (void)
   sema_init(&sys_sema, 1);
 }
 
-/* If pointer given as parameter is a null pointer, a pointer to kernel
- * virtual address space, a pointer to mapped, but unloadable
- * user virtual memory page, or expects writeable page and page appears to be
- * read-only calls exit(-1) to terminate the
- * offending user process, locks the corresponding frame - otherwise.
- * If the given pointer is a pointer to unmapped virtual memory
- * page and :
- * 1> the given pointer is not esp
- * 2> it appears to be stack access
- * allocate additional pages to let stack growth and locks corresponding
- * frames, otherwise calls exit(-1) to terminate the offending user process.*/
-void validate_pointer (void *addr, void *esp, bool writable) {
-
-    if (addr >= PHYS_BASE || addr == NULL
-        || addr < USER_VADDR_BOTTOM) {
+void validate_addr (void *addr, void *esp, bool writable) {
+    if (!addr || addr >= PHYS_BASE || addr < USER_VADDR_BASE )
         exit(-1);
-    }
 
-    /* Check if page is present and loaded, lock it so it is not swapped */
     lock_acquire(&frames_lock);
     struct page *p = page_lookup(addr, thread_current());
-    if (p && p->loaded) {
-        struct frame *f = frame_lookup(p->kaddr);
+    struct frame *fm = NULL;
+    if (p != NULL && p->loaded){
+        fm = frame_lookup(p->kaddr);
         f->locked = true;
     }
     lock_release(&frames_lock);
 
-    /* If page is not loaded, load with frame locked */
-    if (p && !p->loaded && !load_page(p, true)) {
-        exit(-1);
+    if (p != NULL && !p->loaded ) {
+        bool load_result = load_page(p, true);
+        if (!load_result) exit(-1);
     }
 
-    /* Check for attempt to write into read-only memory */
-    if (p) {
-        if (writable) {
-            if(!p->writable) {
-                exit(-1);
-            }
+    if (p != NULL ){
+        if (writable && !p->writable)
+            exit(-1);
+    } else if (esp != NULL){
+        bool is_valid= false;
+        if (addr >= esp - DEFAUTL_STACK_GROUTH &&
+            STACK_MAX_SIZE >= PHYS_BASE - pg_round_down(addr)){
+            is_valid = grow_stack(addr, true, NULL);
         }
-    } else
-    /* Memory unmapped, might lead to stack growth */
-    if (!p && esp) {
-      bool valid = false;
-      if (addr >= esp - DEFAUTL_STACK_GROUTH) {
-        if (PHYS_BASE - pg_round_down (addr) <= STACK_MAX_SIZE) {
-          /* Grow with frame locked */
-          valid = grow_stack (addr, true, NULL);
-        }
-      }
-      if (!valid) {
-        exit(-1);
-      }
-
-    /* if esp == null, we are checking the stack pointer
-     * thus stack growth does not apply to such situation */
+        if (!is_valid)
+            exit(-1);
     } else {
-      exit(-1);
+        exit(-1);
     }
+
 }
 
 /* Resolves the called function from system call number,
@@ -103,7 +78,7 @@ static void
 syscall_handler (struct intr_frame *f)
 {
  int *syscall = (int *)f->esp;
- validate_pointer(syscall, NULL, /* Writeable */ false);
+ validate_addr(syscall, NULL, /* Writeable */ false);
     switch (*syscall) {
         case SYS_HALT: {
             halt();
@@ -122,7 +97,7 @@ syscall_handler (struct intr_frame *f)
             void *args[1];
             retrieve_and_validate_args(syscall, 1, args);
             char *buff_ptr = (char *)*(int *)args[0];
-            validate_pointer(buff_ptr, f->esp, /* Writeable */ false);
+            validate_addr(buff_ptr, f->esp, /* Writeable */ false);
             f->eax = open (buff_ptr);
             unlock_args_memory(syscall, 1, args);
             break;
@@ -138,7 +113,7 @@ syscall_handler (struct intr_frame *f)
             void *args[1];
             retrieve_and_validate_args(syscall, 1, args);
             char *buff_ptr = (char *)*(int *)args[0];
-            validate_pointer(buff_ptr, f->esp, /* Writeable */ false);
+            validate_addr(buff_ptr, f->esp, /* Writeable */ false);
             int cid = exec(buff_ptr);
             f->eax = cid;
             unlock_args_memory(syscall, 1, args);
@@ -156,7 +131,7 @@ syscall_handler (struct intr_frame *f)
             void *args[2];
             retrieve_and_validate_args(syscall, 2, args);
             char *buff_ptr = (char *)*(int *)args[0];
-            validate_pointer(buff_ptr, f->esp, /* Writeable */ false);
+            validate_addr(buff_ptr, f->esp, /* Writeable */ false);
             f->eax = create(buff_ptr, *(int *)args[1]);
             unlock_args_memory(syscall, 2, args);
             break;
@@ -165,7 +140,7 @@ syscall_handler (struct intr_frame *f)
             void *args[1];
             retrieve_and_validate_args(syscall, 1, args);
             char *buff_ptr = (char *)*(int *)args[0];
-            validate_pointer(buff_ptr, f->esp, /* Writeable */ false);
+            validate_addr(buff_ptr, f->esp, /* Writeable */ false);
             f->eax = remove (buff_ptr);
             unlock_args_memory(syscall, 1, args);
             break;
@@ -237,7 +212,7 @@ void retrieve_and_validate_args (int *ptr, int argnum, void **syscall_args_ptr) 
     int i = 0;
     while (argnum > 0) {
         void *arg_ptr = (void *) ++ptr;
-        validate_pointer (arg_ptr, NULL, NULL);
+        validate_addr (arg_ptr, NULL, NULL);
         syscall_args_ptr[i] = arg_ptr;
         i++;
         argnum--;
@@ -265,15 +240,15 @@ void unlock_args_memory (int *ptr, int argnum, void **syscall_args_ptr) {
 
 /* Validates start and all pages that buffer occupies. */
 void validate_buffer (char* buff_ptr, int size, void* esp, bool writable) {
-    validate_pointer (buff_ptr, esp, writable);
+    validate_addr (buff_ptr, esp, writable);
     int pages = size / PGSIZE;
     int rest = size % PGSIZE;
     int k;
     for (k = 1; k <= pages; k++) {
-        validate_pointer (buff_ptr + k * PGSIZE, esp, writable);
+        validate_addr (buff_ptr + k * PGSIZE, esp, writable);
     }
     if (rest != 0) {
-        validate_pointer (buff_ptr + size, esp, writable);
+        validate_addr (buff_ptr + size, esp, writable);
     }
 }
 

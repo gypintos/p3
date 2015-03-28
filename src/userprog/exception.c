@@ -166,7 +166,7 @@ page_fault (struct intr_frame *f)
   result = false;
   if (not_present && user && 
       is_user_vaddr (fault_addr) && 
-      (fault_addr >= USER_VADDR_BOTTOM) ) 
+      (fault_addr >= USER_VADDR_BASE) ) 
   {
     struct page *p = page_lookup(fault_addr, thread_current ());
     if (p != NULL) {
