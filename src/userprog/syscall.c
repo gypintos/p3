@@ -4,15 +4,15 @@
 #include <string.h>
 #include <hash.h>
 #include <limits.h>
+#include "threads/interrupt.h"
+#include "threads/malloc.h"
+#include "threads/thread.h"
+#include "threads/vaddr.h"
 #include "devices/input.h"
 #include "devices/shutdown.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
-#include "threads/interrupt.h"
-#include "threads/malloc.h"
-#include "threads/thread.h"
-#include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "userprog/process.h"
 #include "userprog/exception.h"
@@ -22,29 +22,6 @@
 #define BUFFER_SPLIT_SIZE 300
 
 static void syscall_handler (struct intr_frame *);
-static int write (int fd, const void *buffer, unsigned length);
-static tid_t exec (const char *file_name);
-static int wait (tid_t);
-static void halt (void);
-static bool create (const char *file_name, unsigned initial_size);
-static int open (const char *file_name);
-static bool remove (const char *file_name);
-static int filesize (int fd);
-static struct file * thread_fd_to_file (int fd);
-static void add_to_fds (struct thread *t, struct file_desc* opened_file);
-static int read (int fd, void *buffer, unsigned length);
-static void close (int fd);
-static void seek (int fd, unsigned position);
-static unsigned tell (int fd);
-static mapid_t mmap (int fd, void *addr);
-static void munmap (mapid_t mapping);
-static void munmap_mapping (struct mapping *m, struct thread *t);
-
-static void retrieve_and_validate_args (int *ptr, int argnum, void **syscall_args_ptr);
-static void validate_pointer (void *addr, void *esp, bool writable);
-static void validate_buffer (char* buff_ptr, int size, void *esp, bool writeable);
-static void unlock_buffer (const char* buff_ptr, int size);
-static void unlock_args_memory (int *ptr, int argnum, void **syscall_args_ptr);
 struct semaphore exit_sema;
 
 void fds_destructor_func (struct hash_elem *e, void *aux);
@@ -70,7 +47,7 @@ syscall_init (void)
  * 2> it appears to be stack access
  * allocate additional pages to let stack growth and locks corresponding
  * frames, otherwise calls exit(-1) to terminate the offending user process.*/
-static void validate_pointer (void *addr, void *esp, bool writable) {
+void validate_pointer (void *addr, void *esp, bool writable) {
 
     if (addr >= PHYS_BASE || addr == NULL
         || addr < USER_VADDR_BOTTOM) {
@@ -289,7 +266,7 @@ void unlock_args_memory (int *ptr, int argnum, void **syscall_args_ptr) {
 }
 
 /* Validates start and all pages that buffer occupies. */
-static void validate_buffer (char* buff_ptr, int size, void* esp, bool writable) {
+void validate_buffer (char* buff_ptr, int size, void* esp, bool writable) {
     validate_pointer (buff_ptr, esp, writable);
     int pages = size / PGSIZE;
     int rest = size % PGSIZE;
@@ -302,7 +279,7 @@ static void validate_buffer (char* buff_ptr, int size, void* esp, bool writable)
     }
 }
 
-static void unlock_buffer (const char* buff_ptr, int size) {
+void unlock_buffer (const char* buff_ptr, int size) {
     lock_acquire(&frames_lock);
     struct page *p = page_lookup(buff_ptr, thread_current());
     struct frame *f = frame_lookup(p->kaddr);
@@ -326,7 +303,7 @@ static void unlock_buffer (const char* buff_ptr, int size) {
 }
 
 /* Terminates Pintos by calling shutdown_power_off().*/
-static void halt (void) {
+void halt (void) {
     shutdown_power_off();
 }
 
@@ -382,7 +359,7 @@ void exit (int status) {
 /* Runs the executable whose name is given in cmd_line,
    passing any given arguments, and returns the new process's
    program id. */
-static tid_t exec (const char *file_name){
+tid_t exec (const char *file_name){
     lock_acquire(&filesyslock);
     tid_t child = process_execute (file_name);
     lock_release(&filesyslock);
@@ -390,12 +367,12 @@ static tid_t exec (const char *file_name){
 }
 
 /* Waits for a child process pid and returns the child's exit status. */
-static int wait (tid_t cid) {
+int wait (tid_t cid) {
     return process_wait(cid);
 }
 
 /* Creates a new file called file initially initial_size bytes in size. */
-static bool create (const char *file_name, unsigned initial_size) {
+bool create (const char *file_name, unsigned initial_size) {
         lock_acquire(&filesyslock);
         int fd = filesys_create(file_name, initial_size);
         lock_release(&filesyslock);
@@ -404,7 +381,7 @@ static bool create (const char *file_name, unsigned initial_size) {
 
  /* Opens the file called file. Returns a nonnegative integer
    file descriptor or -1 if the file could not be opened.*/
- static int open (const char *file_name) {
+ int open (const char *file_name) {
      struct thread *t = thread_current();
 
      if (hash_size(&t->fds) == MAX_FILES) {
@@ -424,7 +401,7 @@ static bool create (const char *file_name, unsigned initial_size) {
 }
 /* Allocates new file descriptor id, assigns it to opened_file file_desc
    and adds file_desc to the hash table of the thread pointed to by t.*/
-static void add_to_fds(struct thread *t, struct file_desc *opened_file) {
+void add_to_fds(struct thread *t, struct file_desc *opened_file) {
      do {
              if (t->fd_seq == USHRT_MAX) {
                  t->fd_seq = 1;
@@ -436,7 +413,7 @@ static void add_to_fds(struct thread *t, struct file_desc *opened_file) {
 
 
  /* Deletes the file called file. Returns true if successful, false otherwise. */
- static bool remove (const char *file_name) {
+ bool remove (const char *file_name) {
         lock_acquire(&filesyslock);
         bool removed = filesys_remove(file_name);
         lock_release(&filesyslock);
@@ -445,7 +422,7 @@ static void add_to_fds(struct thread *t, struct file_desc *opened_file) {
 
  /* Returns the size, in bytes, of the file open as fd, -1
     if process does not own file descriptor*/
- static int filesize (int fd) {
+ int filesize (int fd) {
      struct file *file_ptr = thread_fd_to_file(fd);
      int size = -1;
      if (file_ptr != NULL) {
@@ -458,7 +435,7 @@ static void add_to_fds(struct thread *t, struct file_desc *opened_file) {
 
  /* Returns pointer to a file if it is opened by current thread,
   * null - otherwise. */
- static struct file * thread_fd_to_file (int fid) {
+ struct file * thread_fd_to_file (int fid) {
     struct file_desc fd;
     struct file_desc *fd_ptr ;
     fd.fid = fid;
@@ -472,7 +449,7 @@ static void add_to_fds(struct thread *t, struct file_desc *opened_file) {
 
 /* Reads size bytes from the file open as fd into buffer.
    Returns the number of bytes actually read. */
-static int read (int fd, void *buffer, unsigned length) {
+int read (int fd, void *buffer, unsigned length) {
     if (fd == 1) {
         return -1;
     }
@@ -500,7 +477,7 @@ static int read (int fd, void *buffer, unsigned length) {
 }
 
 /* Writes contents of the buffer to the given file descriptor. */
-static int write (int fd, const void *buffer, unsigned length) {
+int write (int fd, const void *buffer, unsigned length) {
 
     const char *b = (char *) buffer;
     if (fd == 1) {
@@ -535,7 +512,7 @@ static int write (int fd, const void *buffer, unsigned length) {
 
 /*Closes a file, if process owns file descriptor.
   Removes file descriptor from the list of the process.*/
-static void close (int fid) {
+void close (int fid) {
     struct file_desc fd;
     fd.fid = fid;
     struct hash *fds_ptr = &thread_current()->fds;
@@ -550,7 +527,7 @@ static void close (int fid) {
 
 /* Changes the next byte to be read or written in open file fd
    to position, expressed in bytes from the beginning of the file.*/
-static void seek (int fd, unsigned position) {
+void seek (int fd, unsigned position) {
     struct file *file_ptr = thread_fd_to_file(fd);
     if (file_ptr != NULL) {
         lock_acquire(&filesyslock);
@@ -562,7 +539,7 @@ static void seek (int fd, unsigned position) {
 
 /* Returns the position of the next byte to be read or written
  in open file fd, expressed in bytes from the beginning of the file. */
-static unsigned tell (int fd) {
+unsigned tell (int fd) {
     struct file *file_ptr = thread_fd_to_file(fd);
     unsigned position = -1;
     if (file_ptr != NULL) {
@@ -603,7 +580,7 @@ void ct_destructor_func (struct hash_elem *e, void *aux UNUSED) {
 /* Maps the file open as fd into the process's
  virtual address space. The entire file is mapped into
  consecutive virtual pages starting at addr. */
-static mapid_t mmap (int fd, void *addr) {
+mapid_t mmap (int fd, void *addr) {
 
     /* console input and output are not mappable */
     if (fd == STDIN_FILENO || fd == STDOUT_FILENO) {
@@ -692,7 +669,7 @@ static mapid_t mmap (int fd, void *addr) {
 }
 
 /* Unmaps the mapping designated by mapping. */
-static void munmap (mapid_t mapping) {
+void munmap (mapid_t mapping) {
     struct mapping m_;
     struct mapping *m;
     struct hash_elem *e;
@@ -708,7 +685,7 @@ static void munmap (mapid_t mapping) {
     munmap_mapping(m, t);
 }
 
-static void munmap_mapping (struct mapping *m, struct thread *t) {
+void munmap_mapping (struct mapping *m, struct thread *t) {
     void *addr = m->addr;
     int i;
     /* write back to file */
