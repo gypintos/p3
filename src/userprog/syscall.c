@@ -349,7 +349,7 @@ int open (const char *file_name) {
     struct file* f_ptr = filesys_open(file_name);
     if (!f_ptr){
         lock_release(&filesys_lock);
-        return -1
+        return -1;
     }
     lock_release(&filesys_lock);
     struct fild_desc *fd_open = malloc(sizeof(struct file_desc));
