@@ -474,7 +474,7 @@ int write (int fd, const void *buffer, unsigned length) {
         return 0;
     } else if (fd == STDOUT_FILENO){
         int cnt = length/BUFFER_SIZE;
-        int remain = length*BUFFER_SIZE;
+        int remain = length%BUFFER_SIZE;
         int i;
         for (i = 0; i < cnt; i++){
             putbuf(bp + i* BUFFER_SIZE, BUFFER_SIZE);
