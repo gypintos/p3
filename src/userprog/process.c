@@ -505,8 +505,8 @@ setup_stack (void **esp, char *file_name, char *save_ptr)
         free(argv);
         return false;
       }
+      argv = tmp;
     }
-    argv = tmp;
     i++;
     argv[i] = *esp;    
   }
