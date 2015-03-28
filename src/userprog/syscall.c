@@ -493,7 +493,7 @@ unsigned tell (int fd) {
     // }
     // return position;
     lock_acquire(&filesys_lock);
-    struct file* fptr = get_file_by_id(fid);
+    struct file* fptr = get_file_by_id(fd);
     if (!fptr){
         lock_release(&filesys_lock);
         return -1;
