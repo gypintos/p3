@@ -354,39 +354,26 @@ int open (const char *file_name) {
     lock_release(&filesys_lock);
     struct file_desc *fd_open = malloc(sizeof(struct file_desc));
     fd_open->fptr = f_ptr;
-    add_to_fds(curr, fd_open);
-    return fd_open->fid;
-
-
-     // struct thread *t = thread_current();
-     // if (hash_size(&t->fds) == MAX_OPEN_FILES) {
-     //     return -1;
-     // }
-     // lock_acquire(&filesys_lock);
-     // struct file *file_ptr = filesys_open(file_name);
-     // lock_release(&filesys_lock);
-     // if (file_ptr == NULL) {
-     //        return -1;
-     // }
-     // struct file_desc *opened_file = malloc(sizeof (struct file_desc));
-     // opened_file->fptr = file_ptr;
-     // add_to_fds(t, opened_file);
-     // return opened_file->fid;
-
-
-
-    
+    insert_fd(curr, fd_open);
+    return fd_open->fid; 
 }
+
 /* Allocates new file descriptor id, assigns it to opened_file file_desc
    and adds file_desc to the hash table of the thread pointed to by t.*/
-void add_to_fds(struct thread *t, struct file_desc *opened_file) {
-     do {
-             if (t->fd_seq == USHRT_MAX) {
-                 t->fd_seq = 1;
-             }
-             opened_file->fid = ++t->fd_seq;
-         }
-     while (hash_insert(&t->fds, &opened_file->elem) != NULL);
+void insert_fd(struct thread *t, struct file_desc *fd) {
+     // do {
+     //         if (t->fd_seq == USHRT_MAX) {
+     //             t->fd_seq = 1;
+     //         }
+     //         fd->fid = ++t->fd_seq;
+     //     }
+     // while (hash_insert(&t->fds, &fd->elem) != NULL);
+
+     fd->fid = ++t->fd_seq;
+     while(!hash_insert(&t->fds, &fd->elem)){
+        ;
+     }
+
 }
 
 
