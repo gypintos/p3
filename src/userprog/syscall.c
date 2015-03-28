@@ -469,7 +469,7 @@ int write (int fd, const void *buffer, unsigned length) {
     //     return 0;
     // }
 
-    const char *bp = (char*) buffer;
+    // const char *bp = (char*) buffer;
     if (fd == STDIN_FILENO) {
         return 0;
     } else if (fd == STDOUT_FILENO){
@@ -477,20 +477,20 @@ int write (int fd, const void *buffer, unsigned length) {
         int remain = length%BUFFER_SIZE;
         int i;
         for (i = 0; i < cnt; i++){
-            putbuf(bp + i* BUFFER_SIZE, BUFFER_SIZE);
+            putbuf(buffer + i* BUFFER_SIZE, BUFFER_SIZE);
         }
         if (remain > 0){
-            putbuf(bp + cnt * BUFFER_SIZE, remain);
+            putbuf(buffer + cnt * BUFFER_SIZE, remain);
         }
-        release_buf(bp, length);
+        release_buf(buffer, length);
         return length;
     } else {
         struct file *f_ptr = get_file_by_id(fd);
         if (f_ptr) {
             lock_acquire(&filesys_lock);
-            length = file_write(f_ptr, bp, length);
+            length = file_write(f_ptr, buffer, length);
             lock_release(&filesys_lock);
-            release_buf(bp, length);
+            release_buf(buffer, length);
             return length;
         };
         return 0;
