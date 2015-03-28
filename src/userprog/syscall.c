@@ -210,7 +210,7 @@ void get_args (int *ptr, int count, void **argv) {
     int i;
     for (i = 0; i < count; ++i)
     {
-        void *tmp_ptr= (void*) ++prt;
+        void *tmp_ptr= (void*) ++ptr;
         validate_addr(tmp_ptr, NULL, NULL);
         argv[i] = tmp_ptr;
 
