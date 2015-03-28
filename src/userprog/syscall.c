@@ -86,7 +86,7 @@ syscall_handler (struct intr_frame *f)
         }
         case SYS_WRITE: {
             void *args[3];
-            retrieve_and_validate_args(syscall, 3, args);
+            get_args(syscall, 3, args);
             char *buff_ptr = (char *)*(int *)args[1];
             validate_buffer (buff_ptr, *(int *)args[2], NULL, /* Writeable */ false);
             f->eax = write (*(int *)args[0], buff_ptr, *(int *)args[2]);
@@ -95,7 +95,7 @@ syscall_handler (struct intr_frame *f)
         }
         case SYS_OPEN: {
             void *args[1];
-            retrieve_and_validate_args(syscall, 1, args);
+            get_args(syscall, 1, args);
             char *buff_ptr = (char *)*(int *)args[0];
             validate_addr(buff_ptr, f->esp, /* Writeable */ false);
             f->eax = open (buff_ptr);
@@ -104,14 +104,14 @@ syscall_handler (struct intr_frame *f)
         }
         case SYS_EXIT: {
             void *args[1];
-            retrieve_and_validate_args(syscall, 1, args);
+            get_args(syscall, 1, args);
             f->eax = *(int *)args[0];
             exit(*(int *)args[0]);
             break;
         }
         case SYS_EXEC: {
             void *args[1];
-            retrieve_and_validate_args(syscall, 1, args);
+            get_args(syscall, 1, args);
             char *buff_ptr = (char *)*(int *)args[0];
             validate_addr(buff_ptr, f->esp, /* Writeable */ false);
             int cid = exec(buff_ptr);
@@ -121,7 +121,7 @@ syscall_handler (struct intr_frame *f)
         }
         case SYS_WAIT: {
             void *args[1];
-            retrieve_and_validate_args(syscall, 1, args);
+            get_args(syscall, 1, args);
             f->eax = wait(*(int *) args[0]);
             unlock_args_memory(syscall, 1, args);
             break;
@@ -129,7 +129,7 @@ syscall_handler (struct intr_frame *f)
         case SYS_CREATE: {
             // File system code checks for name length, so we do not need to.
             void *args[2];
-            retrieve_and_validate_args(syscall, 2, args);
+            get_args(syscall, 2, args);
             char *buff_ptr = (char *)*(int *)args[0];
             validate_addr(buff_ptr, f->esp, /* Writeable */ false);
             f->eax = create(buff_ptr, *(int *)args[1]);
@@ -138,7 +138,7 @@ syscall_handler (struct intr_frame *f)
             }
         case SYS_REMOVE: {
             void *args[1];
-            retrieve_and_validate_args(syscall, 1, args);
+            get_args(syscall, 1, args);
             char *buff_ptr = (char *)*(int *)args[0];
             validate_addr(buff_ptr, f->esp, /* Writeable */ false);
             f->eax = remove (buff_ptr);
@@ -147,7 +147,7 @@ syscall_handler (struct intr_frame *f)
             }
         case SYS_FILESIZE: {
             void *args[1];
-            retrieve_and_validate_args(syscall, 1, args);
+            get_args(syscall, 1, args);
             int file_sz = filesize(*(int *)args[0]);
             if (file_sz == -1) {
                 exit (-1);
@@ -160,7 +160,7 @@ syscall_handler (struct intr_frame *f)
             }
         case SYS_READ: {
             void *args[3];
-            retrieve_and_validate_args(syscall, 3, args);
+            get_args(syscall, 3, args);
             char *buff_ptr = (char *)*(int *)args[1];
             validate_buffer(buff_ptr, *(unsigned *)args[2], f->esp, true);
             f->eax = read (*(int *)args[0], buff_ptr, *(unsigned *)args[2]);
@@ -169,35 +169,35 @@ syscall_handler (struct intr_frame *f)
         }
         case SYS_SEEK: {
             void *args[2];
-            retrieve_and_validate_args(syscall, 2, args);
+            get_args(syscall, 2, args);
             seek (*(int *)args[0], *(unsigned *)args[1]);
             unlock_args_memory(syscall, 2, args);
             break;
             }
         case SYS_TELL: {
             void *args[1];
-            retrieve_and_validate_args(syscall, 1, args);
+            get_args(syscall, 1, args);
             f->eax = tell(*(int *)args[0]);
             unlock_args_memory(syscall, 1, args);
             break;
             }
         case SYS_CLOSE: {
             void *args[1];
-            retrieve_and_validate_args(syscall, 1, args);
+            get_args(syscall, 1, args);
             close (*(int *)args[0]);
             unlock_args_memory(syscall, 1, args);
             break;
         }
         case SYS_MMAP: {
             void *args[2];
-            retrieve_and_validate_args(syscall, 2, args);
+            get_args(syscall, 2, args);
             f->eax = mmap(*(int *)args[0], (char *)*(int *)args[1]);
             unlock_args_memory(syscall, 2, args);
             break;
         }
         case SYS_MUNMAP: {
             void *args[1];
-            retrieve_and_validate_args(syscall, 1, args);
+            get_args(syscall, 1, args);
             munmap((mapid_t)*(int *)args[0]);
             unlock_args_memory(syscall, 1, args);
             break;
@@ -206,16 +206,14 @@ syscall_handler (struct intr_frame *f)
 
 }
 
-/* Retrieves arguments for system call from the frame.
-    Validates pointers, locks corresponding frames*/
-void retrieve_and_validate_args (int *ptr, int argnum, void **syscall_args_ptr) {
-    int i = 0;
-    while (argnum > 0) {
-        void *arg_ptr = (void *) ++ptr;
-        validate_addr (arg_ptr, NULL, NULL);
-        syscall_args_ptr[i] = arg_ptr;
-        i++;
-        argnum--;
+void get_args (int *ptr, int count, void **argv) {
+    int i;
+    for (i = 0; i < count; ++i)
+    {
+        void *tmp_ptr= (void*) ++prt;
+        validate_addr(tmp_ptr, NULL, NULL);
+        argv[i] = tmp_ptr;
+
     }
 }
 
