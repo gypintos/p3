@@ -162,12 +162,7 @@ syscall_handler (struct intr_frame *f)
             void *args[1];
             get_args(syscall, 1, args);
             int file_sz = filesize(*(int *)args[0]);
-            // if (file_sz == -1) {
-            //     exit (-1);
-            // }
-            // else {
-                f->eax = file_sz;
-            // }
+            f->eax = file_sz;
             release_args(syscall, 1, args);
             break;
             }
@@ -368,8 +363,6 @@ void insert_fd(struct thread *t, struct file_desc *fd) {
      return fsize;
   }
 
- /* Returns pointer to a file if it is opened by current thread,
-  * null - otherwise. */
  struct file * get_file_by_id (int fid) {
     struct file_desc fd;
     struct file_desc *fd_ptr ;
@@ -385,30 +378,54 @@ void insert_fd(struct thread *t, struct file_desc *fd) {
 /* Reads size bytes from the file open as fd into buffer.
    Returns the number of bytes actually read. */
 int read (int fd, void *buffer, unsigned length) {
-    if (fd == 1) {
+    // if (fd == 1) {
+    //     return -1;
+    // }
+    // if (fd == 0) {
+    //     char *b = (char *) buffer;
+    //     int i = 0;
+    //     while (length > 0 || b[i-1] != '\n') {
+    //         b[i] = input_getc();
+    //         i++;
+    //         length--;
+    //     }
+    //     release_buf(buffer, length);
+    //     return i;
+    // }
+    // struct file *file_ptr = get_file_by_id(fd);
+
+    // if (file_ptr != NULL) {
+    //     lock_acquire(&filesys_lock);
+    //     length = file_read(file_ptr, buffer, length);
+    //     lock_release(&filesys_lock);
+    //     release_buf(buffer, length);
+    //     return length;
+    // }
+    // return -1;
+//
+
+    if (fd == STDOUT_FILENO){
         return -1;
-    }
-    if (fd == 0) {
-        char *b = (char *) buffer;
-        int i = 0;
-        while (length > 0 || b[i-1] != '\n') {
-            b[i] = input_getc();
-            i++;
-            length--;
+    } else if (fd == STDIN_FILENO){
+        int i;
+        for( i = 0; i < length; i++){
+            buffer[i] = input_getc();
+
         }
         release_buf(buffer, length);
-        return i;
-    }
-    struct file *file_ptr = get_file_by_id(fd);
-
-    if (file_ptr != NULL) {
-        lock_acquire(&filesys_lock);
-        length = file_read(file_ptr, buffer, length);
-        lock_release(&filesys_lock);
-        release_buf(buffer, length);
         return length;
+    } else {
+        lock_acquire(&filesys_lock);
+        struct file* fptr = get_file_by_id(fd);
+        if (fptr == NULL){
+            lock_release(&filesys_lock);
+            return -1;
+        }
+        int result = file_read(fptr, buffer, length);
+        lock_release(&filesys_lock);
+        return result;
     }
-    return -1;
+
 }
 
 int write (int fd, const void *buffer, unsigned length) {
