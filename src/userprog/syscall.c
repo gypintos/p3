@@ -21,6 +21,9 @@
 
 #define BUFFER_SPLIT_SIZE 300
 
+struct lock filesyslock;
+/* Map region identifier. */
+
 static void syscall_handler (struct intr_frame *);
 struct semaphore exit_sema;
 
