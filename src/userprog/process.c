@@ -537,9 +537,8 @@ setup_stack (void **esp, char *file_name, char *save_ptr)
   *esp -= sizeof(int);
   memcpy(*esp, &argc, sizeof(int));
 
-  void *ret = 0;
   *esp -= sizeof(void*);
-  memcpy(*esp,  &ret, sizeof(void *));
+  memcpy(*esp,  &argv[argc], sizeof(void *));
 
   return success;
 }
