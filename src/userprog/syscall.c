@@ -488,7 +488,7 @@ int write (int fd, const void *buffer, unsigned length) {
         struct file *f_ptr = get_file_by_id(fd);
         if (f_ptr) {
             lock_acquire(&filesys_lock);
-            length = file_write(file_ptr, buffer, length);
+            length = file_write(f_ptr, buffer, length);
             lock_release(&filesys_lock);
             release_buf(buffer, length);
             return length;
