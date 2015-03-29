@@ -706,6 +706,7 @@ mapid_t mmap (int fd, void *addr) {
 void munmap (mapid_t id) {
     struct thread *curr = thread_current();
     struct id_addr new_addr;
+    new_addr.mapid = id;
     struct hash_elem *ele = hash_find(&curr->mapids, &new_addr.elem);
     struct id_addr *e_addr;
     if(ele)    e_addr = hash_entry(elem, struct id_addr, elem);
