@@ -14,7 +14,7 @@ struct lock swap_lock;
 /* Note: PGSIZE = 4096, BLOCK_SECTOR_SIZE = 512
  * So each page needs 8 swap sectors.
  */
-int SEC_NUM = PGSIZE / BLOCK_SECTOR_SIZE;
+#define SEC_NUM  PGSIZE / BLOCK_SECTOR_SIZE;
 
 void swap_init(void);
 block_sector_t set_swap(void * addr);
