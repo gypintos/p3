@@ -704,59 +704,59 @@ mapid_t mmap (int fd, void *addr) {
 
 /* Unmaps the id_addr designated by id_addr. */
 void munmap (mapid_t id) {
-    struct thread *curr = thread_current();
-    struct id_addr new_addr;
-    new_addr.mapid = id;
-    struct hash_elem *ele = hash_find(&curr->mapids, &new_addr.elem);
-    struct id_addr *e_addr;
-    if(ele)    e_addr = hash_entry(ele, struct id_addr, elem);
-    else    return;
+    // struct thread *curr = thread_current();
+    // struct id_addr new_addr;
+    // new_addr.mapid = id;
+    // struct hash_elem *ele = hash_find(&curr->mapids, &new_addr.elem);
+    // struct id_addr *e_addr;
+    // if(ele)    e_addr = hash_entry(ele, struct id_addr, elem);
+    // else    return;
 
-    munmap_mapping(e_addr, curr);
+    // munmap_mapping(e_addr, curr);
 
 
-    // struct id_addr m_;
-    // struct id_addr *m;
-    // struct hash_elem *e;
-    // struct thread *t = thread_current();
-    // m_.mapid = id_addr;
-    // e = hash_find(&t->mapids, &m_.elem);
-    // if (e != NULL) {
-    //     m = hash_entry(e, struct id_addr, elem);
-    // } else {
-    //     return;
-    // }
+    struct id_addr m_;
+    struct id_addr *m;
+    struct hash_elem *e;
+    struct thread *t = thread_current();
+    m_.mapid = id;
+    e = hash_find(&t->mapids, &m_.elem);
+    if (e != NULL) {
+        m = hash_entry(e, struct id_addr, elem);
+    } else {
+        return;
+    }
 
-    // munmap_mapping(m, t);
+    munmap_mapping(m, t);
 }
 
 void munmap_mapping (struct id_addr *id, struct thread *t) {
-    void *addr = id->addr;
-    int i = 1;
-    while( i <= id->pnum){
-        struct page *p = page_lookup(addr, t);
-        ASSERT(p && p->type == MMAP);
-        release_mmap_page(p);
-        hash_delete(&t->page_table, &p->hash_elem);
-        free(p);
-        addr += PGSIZE;
-        i++;
-        
-    }
-    hash_delete(&t->mapids, &id->elem);
-
-
     // void *addr = id->addr;
-    // int i;
-    // /* write back to file */
-    // for (i = 1; i <= id->pnum; i++) {
+    // int i = 1;
+    // while( i <= id->pnum){
     //     struct page *p = page_lookup(addr, t);
-    //     ASSERT((p != NULL) && (p->type == MMAP));
+    //     ASSERT(p && p->type == MMAP);
     //     release_mmap_page(p);
     //     hash_delete(&t->page_table, &p->hash_elem);
     //     free(p);
     //     addr += PGSIZE;
+    //     i++;
+        
     // }
+    // hash_delete(&t->mapids, &id->elem);
 
-    //hash_delete(&t->mapids, &id->elem);
+
+    void *addr = id->addr;
+    int i;
+    /* write back to file */
+    for (i = 1; i <= id->pnum; i++) {
+        struct page *p = page_lookup(addr, t);
+        ASSERT((p != NULL) && (p->type == MMAP));
+        release_mmap_page(p);
+        hash_delete(&t->page_table, &p->hash_elem);
+        free(p);
+        addr += PGSIZE;
+    }
+
+    hash_delete(&t->mapids, &id->elem);
 }
