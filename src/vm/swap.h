@@ -2,6 +2,7 @@
 #define VM_SWAP_H_
 
 #include "devices/block.h"
+#include "threads/vaddr.h"
 
 /* The swap slots */
 struct block *swap;
