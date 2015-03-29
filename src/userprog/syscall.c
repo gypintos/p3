@@ -735,13 +735,13 @@ void munmap_helper (struct id_addr *id, struct thread *t) {
     int i = 1;
     while( i <= id->pnum){
         struct page *p = page_lookup(addr, t);
-        if(p && p->type == MMAP){
-            release_mmap_page(p);
-            hash_delete(&t->page_table, &p->hash_elem);
-            free(p);
-            addr += PGSIZE;
-            i++;
-        }
+        ASSERT(p && p->type == MMAP);
+        release_mmap_page(p);
+        hash_delete(&t->page_table, &p->hash_elem);
+        free(p);
+        addr += PGSIZE;
+        i++;
+        
     }
     hash_delete(&t->mapids, &id->elem);
 
