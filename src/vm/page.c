@@ -282,7 +282,7 @@ page_destructor (struct hash_elem *p_, void *aux UNUSED)
             free (p);
         }
         else {
-            free_sector (p->sector);
+            release_sector (p->sector);
             free (p);
         }
         break;
@@ -293,7 +293,7 @@ page_destructor (struct hash_elem *p_, void *aux UNUSED)
             free (p);
         }
         else {
-            free_sector (p->sector);
+             release_sector (p->sector);
             free (p);
         }
 
@@ -308,7 +308,7 @@ page_destructor (struct hash_elem *p_, void *aux UNUSED)
 void
 swap_in (struct page *p)
 {
-    p->sector = set_swap(p->kaddr);
+    p->sector = swap_set(p->kaddr);
     p->swapped = true;
     p->loaded = false;
 }
@@ -317,7 +317,7 @@ swap_in (struct page *p)
 void
 swap_out(struct page *p, void *k_addr)
 {
-    get_swap(p->sector, k_addr);
+    swap_get(p->sector, k_addr);
     p->kaddr = k_addr;
     p->swapped = false;
 }
