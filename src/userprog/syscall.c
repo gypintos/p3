@@ -709,7 +709,7 @@ void munmap (mapid_t id) {
     new_addr.mapid = id;
     struct hash_elem *ele = hash_find(&curr->mapids, &new_addr.elem);
     struct id_addr *e_addr;
-    if(ele)    e_addr = hash_entry(elem, struct id_addr, elem);
+    if(ele)    e_addr = hash_entry(ele, struct id_addr, elem);
     else    return;
 
     munmap_helper(e_addr, curr);
