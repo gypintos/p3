@@ -16,7 +16,7 @@ struct lock swap_lock;
  */
 #define SEC_NUM  PGSIZE / BLOCK_SECTOR_SIZE
 
-void init_swap(void);
+void swap_init(void);
 block_sector_t set_swap(void * addr);
 void get_swap(block_sector_t sector, void * addr);
 void free_sector (block_sector_t sector);

@@ -5,7 +5,7 @@
 
 
 void
-init_swap(void)
+swap_init(void)
 {
   swap = block_get_role(BLOCK_SWAP);
   // Number of sectors in BLOCK_SWAP
