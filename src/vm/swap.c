@@ -8,56 +8,63 @@ void
 swap_init(void)
 {
   swap = block_get_role(BLOCK_SWAP);
-  // Number of sectors in BLOCK_SWAP
-  int size = block_size(swap);
-  swap_table = bitmap_create(size / SEC_NUM);
-  lock_init(&swap_lock);
+  sw_table = bitmap_create(block_size(swap)/ SEC_NUM);
+  lock_init(&sw_lock);
 }
 
 /* Save a page with the given address in swap */
 block_sector_t
-set_swap(void * addr)
+swap_set(void * addr)
 {
-  lock_acquire(&swap_lock);
+  lock_acquire(&sw_lock);
   // Find a free sector in the swap table
-  block_sector_t sector = bitmap_scan (swap_table, 0, 1, false);
+  block_sector_t index = bitmap_scan (sw_table, 0, 1, false);
   //printf("Found sector %d to write page %p", sector, addr);
-  if(sector == BITMAP_ERROR)
+  if(index == BITMAP_ERROR)
     PANIC("Swap table is full.");
 
-  int i;
+  int i = 0;
   // Write page to swap
-  for (i = 0; i< SEC_NUM; i++) {
-    /* Write block to swap */
-    block_write (swap, sector * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
+  while(i < SEC_NUM){
+        block_write (swap, index * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
+        i++;
   }
 
+  // for (i = 0; i< SEC_NUM; i++) {
+  //   /* Write block to swap */
+  //   block_write (swap, index * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
+  // }
+
   // Set the index in the swap table to true
-  bitmap_set (swap_table, sector, true);
-  lock_release(&swap_lock);
-  return sector;
+  bitmap_set (sw_table, index, true);
+  lock_release(&sw_lock);
+  return index;
 }
 
 /* Get a page from the swap table */
 void
-get_swap(block_sector_t sector, void * addr)
+swap_get(block_sector_t index, void * addr)
 {
-  int i;
-  for (i = 0; i< SEC_NUM; i++)
-    block_read (swap, sector * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
+  int i = 0;
+  while(i < SEC_NUM){
+    block_read (swap, index * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
+    i++;
+  }
+  // for (i = 0; i< SEC_NUM; i++)
+  //   block_read (swap, index * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
 
-  lock_acquire(&swap_lock);
+  lock_acquire(&sw_lock);
   // Deallocate the given sector in the swap table
-  bitmap_set (swap_table, sector, false);
-  lock_release(&swap_lock);
+  bitmap_set (sw_table, index, false);
+  lock_release(&sw_lock);
 }
 
 /* Mark swap sector as unused*/
 void
-free_sector (block_sector_t sector)
+release_sector (block_sector_t index)
 {
-  lock_acquire(&swap_lock);
+  lock_acquire(&sw_lock);
   // Deallocate the given sector in the swap table
-  bitmap_set (swap_table, sector, false);
-  lock_release(&swap_lock);
+  bitmap_set (sw_table, index, false);
+  lock_release(&sw_lock);
 }
