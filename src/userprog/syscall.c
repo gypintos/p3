@@ -508,7 +508,7 @@ void remove_fds (struct hash_elem *e, void *aux) {
 /* Mapping  destructor */
 void remove_mapids (struct hash_elem *e, void *aux UNUSED) {
     struct id_addr *m = hash_entry (e, struct id_addr, elem);
-    munmap_helper (m, thread_current ());
+    munmap_mapping (m, thread_current ());
     free(m);
 }
 
@@ -712,7 +712,7 @@ void munmap (mapid_t id) {
     if(ele)    e_addr = hash_entry(ele, struct id_addr, elem);
     else    return;
 
-    munmap_helper(e_addr, curr);
+    munmap_mapping(e_addr, curr);
 
 
     // struct id_addr m_;
@@ -730,7 +730,7 @@ void munmap (mapid_t id) {
     // munmap_mapping(m, t);
 }
 
-void munmap_helper (struct id_addr *id, struct thread *t) {
+void munmap_mapping (struct id_addr *id, struct thread *t) {
     void *addr = id->addr;
     int i = 1;
     while( i <= id->pnum){

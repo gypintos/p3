@@ -24,7 +24,7 @@ void seek (int fd, unsigned position);
 unsigned tell (int fd);
 mapid_t mmap (int fd, void *addr);
 void munmap (mapid_t id_addr);
-void munmap_helper (struct id_addr *m, struct thread *t);
+void munmap_mapping (struct id_addr *m, struct thread *t);
 
 void get_args (int *ptr, int argnum, void **syscall_args_ptr);
 void validate_addr (void *addr, void *esp, bool writable);
