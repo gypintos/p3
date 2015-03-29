@@ -2,7 +2,7 @@
 #include <bitmap.h>
 #include <debug.h>
 #include "threads/synch.h"
-#include "threads/vaddr.h"
+#include "vm/swap.h"
 
 
 void swap_init(void)
