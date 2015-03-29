@@ -526,90 +526,180 @@ void remove_child_info (struct hash_elem *e, void *aux UNUSED) {
  consecutive virtual pages starting at addr. */
 mapid_t mmap (int fd, void *addr) {
 
-    /* console input and output are not mappable */
-    if (fd == STDIN_FILENO || fd == STDOUT_FILENO) {
+    if (fd == STDIN_FILENO || fd == STDOUT_FILENO || addr == NULL 
+        || pg_ofs(addr)) {
         return MAP_FAILED;
     }
 
     int size = filesize(fd);
-    /* if the file open as fd has a length of zero bytes
-     * or if an error occurs in filesize */
     if (size == -1 || size == 0) {
         return MAP_FAILED;
     }
 
-    /* if addr is not page-aligned */
-    if (pg_ofs(addr) != 0) {
+
+
+
+    // /* console input and output are not mappable */
+    // if (fd == STDIN_FILENO || fd == STDOUT_FILENO) {
+    //     return MAP_FAILED;
+    // }
+
+    // int size = filesize(fd);
+    //  if the file open as fd has a length of zero bytes
+    //  * or if an error occurs in filesize 
+    // if (size == -1 || size == 0) {
+    //     return MAP_FAILED;
+    // }
+
+    // /* if addr is not page-aligned */
+    // if (pg_ofs(addr) != 0) {
+    //     return MAP_FAILED;
+    // }
+
+    // /* if addr is 0 */
+    // if (!addr) {
+    //     return MAP_FAILED;
+    // }
+
+
+
+
+    // int page_num = size / PGSIZE;
+    // int rem_bytes = size % PGSIZE;
+    // if (rem_bytes != 0) {
+    //     page_num++;
+    // }
+
+
+    struct file* fptr = get_file_by_id(fd);
+    if(!fptr) {
         return MAP_FAILED;
     }
 
-    /* if addr is 0 */
-    if (!addr) {
-        return MAP_FAILED;
+    int page_cnt= size / PGSIZE;
+    int remain= size % PGSIZE;
+    if (remain){
+        page_cnt++;
     }
 
-    int page_num = size / PGSIZE;
-    int rem_bytes = size % PGSIZE;
-    if (rem_bytes != 0) {
-        page_num++;
-    }
 
-    struct thread *t = thread_current();
+
+    struct thread *curr = thread_current();
+
+    //struct thread *t = thread_current();
 
     /* if the range of pages mapped overlaps any existing set of
      * mapped pages */
-    void * ckexist_pt = addr;
-    int ckexist_cnt;
-    for (ckexist_cnt = 0; ckexist_cnt < page_num;
-        ckexist_cnt++, ckexist_pt += PGSIZE) {
-        if (page_lookup(ckexist_pt, t)) {
+
+
+    void *exist_addr = addr;
+    int exist_cnt = 0;
+    while(exist_cnt < page_cnt) {
+        if(page_lookup(exist_addr, curr)){
             return MAP_FAILED;
         }
+        exist_addr += PGSIZE;
+        exist_cnt++;
     }
 
-    struct file *file_ptr = get_file_by_id(fd);
-    if (file_ptr == NULL) {
-        return MAP_FAILED;
-    }
+    // void * ckexist_pt = addr;
+    // int ckexist_cnt;
+    // for (ckexist_cnt = 0; ckexist_cnt < page_num;
+    //     ckexist_cnt++, ckexist_pt += PGSIZE) {
+    //     if (page_lookup(ckexist_pt, t)) {
+    //         return MAP_FAILED;
+    //     }
+    // }
+
+    // struct file *file_ptr = get_file_by_id(fd);
+    // if (file_ptr == NULL) {
+    //     return MAP_FAILED;
+    // }
 
     /* use file_reopen function to obtain a separate and
      * independent reference to the file */
+
     lock_acquire(&filesys_lock);
-    struct file *refile_ptr = file_reopen(file_ptr);
+    struct file *re_fptr = file_reopen(fptr);
     lock_release(&filesys_lock);
-    if (refile_ptr == NULL) {
-        return MAP_FAILED;
-    }
+    if(!re_fptr) return MAP_FAILED;
+
+
+    // lock_acquire(&filesys_lock);
+    // struct file *refile_ptr = file_reopen(file_ptr);
+    // lock_release(&filesys_lock);
+    // if (refile_ptr == NULL) {
+    //     return MAP_FAILED;
+    // }
 
     /* add to supplemental page table */
+
     int offset = 0;
     void *naddr = addr;
-    while (size > 0) {
-        uint32_t read_bytes = size >= PGSIZE? PGSIZE : size;
-        uint32_t zero_bytes = PGSIZE - read_bytes;
-
-        add_page_mmap(naddr, offset, refile_ptr,
-                        read_bytes, zero_bytes);
-
-        size -= read_bytes;
-        offset += read_bytes;
+    while(size > 0){
+         uint32_t rbytes = 0;
+         uint32_t zbytes = 0;
+        if(size >= PGSIZE){
+            rbytes = PGSIZE;
+        } else {
+            rbytes = size;
+        }
+        zbytes = PGSIZE - rbytes;
+        add_page_mmap(naddr, offset, re_fptr, rbytes, zbytes);
+        size -= rbytes;
+        offset += rbytes;
         naddr += PGSIZE;
     }
 
-    /* create new id_addr, add to mapids */
-    struct id_addr *m;
-    m = (struct id_addr *)malloc(sizeof(struct id_addr));
-    m->addr = addr;
-    m->pnum = page_num;
-    do {
-        if (t->mapid_cnt == USHRT_MAX) {
-         t->mapid_cnt = 1;
-        }
-        m->mapid = ++t->mapid_cnt;
-     }
-    while (hash_insert(&t->mapids, &m->elem) != NULL);
 
-    return m->mapid;
+
+
+    // int offset = 0;
+    // void *naddr = addr;
+    // while (size > 0) {
+    //     uint32_t read_bytes = size >= PGSIZE? PGSIZE : size;
+    //     uint32_t zero_bytes = PGSIZE - read_bytes;
+
+    //     add_page_mmap(naddr, offset, refile_ptr,
+    //                     read_bytes, zero_bytes);
+
+    //     size -= read_bytes;
+    //     offset += read_bytes;
+    //     naddr += PGSIZE;
+    // }
+
+    /* create new id_addr, add to mapids */
+
+    struct id_addr *new_addr;
+    new_addr = (struct id_addr *)malloc(sizeof(struct id_addr));
+    new_addr->addr = addr;
+    new_addr->pnum = page_cnt;
+
+    if(curr->mapid_cnt == USHRT_MAX){
+        curr->mapid_cnt = 1;
+    }
+    curr->mapid_cnt++;
+    new_addr->mapid = curr->mapid_cnt;
+
+    while(!hash_insert(&curr->mapids, &new_addr->elem)){
+        ;
+    }
+    return new_addr->mapid;
+
+
+    // struct id_addr *m;
+    // m = (struct id_addr *)malloc(sizeof(struct id_addr));
+    // m->addr = addr;
+    // m->pnum = page_num;
+    // do {
+    //     if (t->mapid_cnt == USHRT_MAX) {
+    //      t->mapid_cnt = 1;
+    //     }
+    //     m->mapid = ++t->mapid_cnt;
+    //  }
+    // while (hash_insert(&t->mapids, &m->elem) != NULL);
+
+    // return m->mapid;
 }
 
 /* Unmaps the id_addr designated by id_addr. */
