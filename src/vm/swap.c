@@ -4,24 +4,13 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 
-/* The swap slots */
-struct block *swap;
-/* The bitmap represents the usage of the swap */
-struct bitmap *swap_table;
-/* Lock used to coordinate swap */
-struct lock swap_lock;
-
-/* Note: PGSIZE = 4096, BLOCK_SECTOR_SIZE = 512
- * So each page needs 8 swap sectors.
- */
-int NUM = PGSIZE / BLOCK_SECTOR_SIZE;
 
 void swap_init(void)
 {
   swap = block_get_role(BLOCK_SWAP);
   // Number of sectors in BLOCK_SWAP
   int size = block_size(swap);
-  swap_table = bitmap_create(size / NUM);
+  swap_table = bitmap_create(size / SEC_NUM);
   lock_init(&swap_lock);
 }
 
@@ -38,9 +27,9 @@ set_swap(void * addr)
 
   int i;
   // Write page to swap
-  for (i = 0; i< NUM; i++) {
+  for (i = 0; i< SEC_NUM; i++) {
     /* Write block to swap */
-    block_write (swap, sector * NUM + i, addr + BLOCK_SECTOR_SIZE * i);
+    block_write (swap, sector * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
   }
 
   // Set the index in the swap table to true
@@ -54,8 +43,8 @@ void
 get_swap(block_sector_t sector, void * addr)
 {
   int i;
-  for (i = 0; i< NUM; i++)
-    block_read (swap, sector * NUM + i, addr + BLOCK_SECTOR_SIZE * i);
+  for (i = 0; i< SEC_NUM; i++)
+    block_read (swap, sector * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
 
   lock_acquire(&swap_lock);
   // Deallocate the given sector in the swap table

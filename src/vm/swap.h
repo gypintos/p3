@@ -3,6 +3,18 @@
 
 #include "devices/block.h"
 
+/* The swap slots */
+struct block *swap;
+/* The bitmap represents the usage of the swap */
+struct bitmap *swap_table;
+/* Lock used to coordinate swap */
+struct lock swap_lock;
+
+/* Note: PGSIZE = 4096, BLOCK_SECTOR_SIZE = 512
+ * So each page needs 8 swap sectors.
+ */
+int SEC_NUM = PGSIZE / BLOCK_SECTOR_SIZE;
+
 void swap_init(void);
 block_sector_t set_swap(void * addr);
 void get_swap(block_sector_t sector, void * addr);
