@@ -4,8 +4,8 @@
 #include "threads/synch.h"
 
 
-
-void swap_init(void)
+void
+init_swap(void)
 {
   swap = block_get_role(BLOCK_SWAP);
   // Number of sectors in BLOCK_SWAP
