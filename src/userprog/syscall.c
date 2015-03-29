@@ -704,30 +704,31 @@ mapid_t mmap (int fd, void *addr) {
 
 /* Unmaps the id_addr designated by id_addr. */
 void munmap (mapid_t id) {
-    // struct thread *curr = thread_current();
-    // struct id_addr new_addr;
-    // new_addr.mapid = id;
-    // struct hash_elem *ele = hash_find(&curr->mapids, &new_addr.elem);
-    // struct id_addr *e_addr;
-    // if(ele)    e_addr = hash_entry(ele, struct id_addr, elem);
-    // else    return;
+    struct thread *curr = thread_current();
+    struct id_addr new_addr;
+    new_addr.mapid = id;
+    struct id_addr *e_addr;
+    struct hash_elem *ele = hash_find(&curr->mapids, &new_addr.elem);
 
-    // munmap_mapping(e_addr, curr);
+    if(ele)    e_addr = hash_entry(ele, struct id_addr, elem);
+    else    return;
+
+    munmap_mapping(e_addr, curr);
 
 
-    struct id_addr m_;
-    struct id_addr *m;
-    struct hash_elem *e;
-    struct thread *t = thread_current();
-    m_.mapid = id;
-    e = hash_find(&t->mapids, &m_.elem);
-    if (e != NULL) {
-        m = hash_entry(e, struct id_addr, elem);
-    } else {
-        return;
-    }
+    // struct id_addr m_;
+    // struct id_addr *m;
+    // struct hash_elem *e;
+    // struct thread *t = thread_current();
+    // m_.mapid = id;
+    // e = hash_find(&t->mapids, &m_.elem);
+    // if (e != NULL) {
+    //     m = hash_entry(e, struct id_addr, elem);
+    // } else {
+    //     return;
+    // }
 
-    munmap_mapping(m, t);
+    // munmap_mapping(m, t);
 }
 
 void munmap_mapping (struct id_addr *id, struct thread *t) {
