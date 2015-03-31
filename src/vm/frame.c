@@ -341,8 +341,8 @@ frame_hash_less_func (const struct hash_elem *first, const struct hash_elem *sec
 
 /* Returns hash of the frame. */
 unsigned t_to_uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED) {
-  struct t_to_uaddr *ttu = hash_entry(e, struct t_to_uaddr, elem);
-  return hash_bytes(ttu->t, sizeof ttu->t);
+  struct t_to_uaddr *thread_to_uaddr = hash_entry(e, struct t_to_uaddr, elem);
+  return hash_bytes(thread_to_uaddr->t, sizeof thread_to_uaddr->t);
 
   // return hash_bytes(&hash_entry(e, struct t_to_uaddr, elem)->t, 
   //   sizeof &hash_entry(e, struct t_to_uaddr, elem)->t);
@@ -382,12 +382,24 @@ void clear_page_accessed (struct hash_elem *e, void *aux UNUSED) {
    or a null pointer if no such mapping exists. */
 struct t_to_uaddr *t_to_uaddr_lookup (struct frame *f, struct thread *t)
 {
-  struct t_to_uaddr ttu;
-  struct hash_elem *e;
+  // struct t_to_uaddr ttu;
+  // struct hash_elem *e;
 
-  ttu.t = t;
-  e = hash_find (&f->thread_to_uaddr, &ttu.elem);
-  return e != NULL ? hash_entry (e, struct t_to_uaddr, elem) : NULL;
+  // ttu.t = t;
+  // e = hash_find (&f->thread_to_uaddr, &ttu.elem);
+  // return e != NULL ? hash_entry (e, struct t_to_uaddr, elem) : NULL;
+
+  
+  struct t_to_uaddr thread_to_uaddr;
+  thread_to_uaddr.t = t;
+  struct hash_elem *ele = hash_find(&f->thread_to_uaddr, &thread_to_uaddr.elem);
+  if(ele){
+    return hash_entry(ele, struct t_to_uaddr, elem);
+  }else{
+    return NULL;
+  }
+  
+
 }
 
 /* Returns true if after applying function to hash table entries
