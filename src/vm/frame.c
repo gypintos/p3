@@ -224,30 +224,57 @@ void free_uninstalled_frame (void *addr) {
 /* If no other threads are using the frame, deletes entry from frame table
    and frees frame and user pool address. */
 void free_frame (struct page *p, bool freepdir) {
-    p->isLoaded = false;
-    struct frame *f = frame_lookup(p->kaddr);
-    if (f != NULL) {
-        struct t_to_uaddr *ttu = t_to_uaddr_lookup (f, thread_current());
-        if (ttu != NULL) {
-            /* Page installed */
-            hash_delete(&f->thread_to_uaddr, &ttu->elem);
-            if (f->pinned || !hash_empty (&f->thread_to_uaddr)) {
-                /* Frame is shared - invalidate */
-                pagedir_clear_page(thread_current()->pagedir, ttu->uaddr);
-                free(ttu);
-            }
-            else {
-                /* Frame used by this page only - free */
-                if (freepdir) {
-                    pagedir_clear_page(thread_current()->pagedir, ttu->uaddr);
-                    palloc_free_page(p->kaddr);
-                }
-                hash_delete(&frames, &f->elem);
-                hash_destroy(&f->thread_to_uaddr, t_to_uaddr_destructor_func);
-                free(f);
-            }
+    // p->isLoaded = false;
+    // struct frame *f = frame_lookup(p->kaddr);
+    // if (f != NULL) {
+    //     struct t_to_uaddr *ttu = t_to_uaddr_lookup (f, thread_current());
+    //     if (ttu != NULL) {
+    //         /* Page installed */
+    //         hash_delete(&f->thread_to_uaddr, &ttu->elem);
+    //         if (f->pinned || !hash_empty (&f->thread_to_uaddr)) {
+    //             /* Frame is shared - invalidate */
+    //             pagedir_clear_page(thread_current()->pagedir, ttu->uaddr);
+    //             free(ttu);
+    //         }
+    //         else {
+    //             /* Frame used by this page only - free */
+    //             if (freepdir) {
+    //                 pagedir_clear_page(thread_current()->pagedir, ttu->uaddr);
+    //                 palloc_free_page(p->kaddr);
+    //             }
+    //             hash_delete(&frames, &f->elem);
+    //             hash_destroy(&f->thread_to_uaddr, t_to_uaddr_destructor_func);
+    //             free(f);
+    //         }
+    //     }
+    // }
+
+    struct frame *fm = frame_lookup(p->kaddr);
+    struct t_to_uaddr *thread_to_uaddr;
+    struct thread *curr = thread_current();
+    if(fm){
+      thread_to_uaddr = t_to_uaddr_lookup(fm, curr);
+      if(thread_to_uaddr){
+        if(fm->pinned == NULL && hash_empty(&fm->thread_to_uaddr)){
+          if(freepdir){
+            pagedir_clear_page(curr->pagedir, thread_to_uaddr->uaddr);
+            palloc_free_page(p->kaddr);
+          }
+          hash_delete(&frames, &fm->elem);
+          hash_destroy(&fm->thread_to_uaddr, t_to_uaddr_destructor_func);
+          free(fm);
+        }else{
+          pagedir_clear_page(curr->pagedir, thread_to_uaddr->uaddr);
+          free(thread_to_uaddr);
         }
+        hash_delete(&fm->thread_to_uaddr, &thread_to_uaddr->elem);
+
+      }
+      
     }
+
+    
+    p->isLoaded = false;
 
 }
 
