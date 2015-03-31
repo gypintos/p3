@@ -303,7 +303,7 @@ struct frame *frame_lookup (void *address)
 
   struct frame *fm;
   fm->k_addr = address;
-  struct hash_elem *ele = hash_find(&frames, fm->elem); 
+  struct hash_elem *ele = hash_find(&frames, &fm->elem); 
   if(ele){
     return hash_entry(ele, struct frame, elem);
   }else{
