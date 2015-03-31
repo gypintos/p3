@@ -30,7 +30,7 @@ struct hash frames;        /* Frames table */
 struct lock frames_lock;       /* Frame lock */
 struct condition frames_locked;  /* Condition to wait on for any frame to unpin\unlock */
   
-void *allocate_frame (enum palloc_flags flags, bool lock);
+void *fm_allocate (enum palloc_flags flags, bool lock);
 void free_frame (struct page *p, bool freepdir);
 void free_uninstalled_frame (void *addr);
 void fmt_init (void);

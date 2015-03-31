@@ -80,7 +80,7 @@ bool load_page_to_frame(struct page *p, bool lock)
       return true;
   }
 
-  void *kaddr = allocate_frame(PAL_ZERO, lock);
+  void *kaddr = fm_allocate(PAL_ZERO, lock);
   if (kaddr == NULL) 
     return false;
 
@@ -123,7 +123,7 @@ bool inc_stack(void * vaddr, bool lock, void *kaddr)
 {
   
   if (!kaddr){
-    kaddr = allocate_frame(PAL_ZERO, lock);
+    kaddr = fm_allocate(PAL_ZERO, lock);
     if (kaddr == NULL) return false;
   } 
   void* paddr = pg_round_down(vaddr);
