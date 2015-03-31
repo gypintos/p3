@@ -22,16 +22,16 @@ struct frame *select_fm (void) {
   struct frame *fm;
   for (;clock_point != end; clock_point += PGSIZE){
     if (clock_point >= clock_point_max) clock_point = clock_point_init;
-    fm = frame_lookup(clock_point);
+    fm = find_fm(clock_point);
     if (!fm){
       continue;
     } else if (fm->locked || fm->pinned){
-      if (is_frame_accessed(fm)){
+      if (if_fm_accessed(fm)){
         hash_apply(&fm->thread_to_uaddr, clear_page_accessed);
       }
       continue;
     } else {
-      if (is_frame_accessed(fm)){
+      if (if_fm_accessed(fm)){
         hash_apply(&fm->thread_to_uaddr, clear_page_accessed);
       } else {
         return fm;
@@ -72,7 +72,7 @@ void *fm_allocate (enum palloc_flags flags, bool lock) {
       if (p->type == STACK){
         page_to_swap(p);
       } else if (p->type == SEGMENT){
-        if (p->writable && (is_frame_dirty(fm) || p->isDirty)){
+        if (p->writable && (if_fm_dirty(fm) || p->isDirty)){
           p->isDirty = true;
           page_to_swap(p);
         }
@@ -96,12 +96,12 @@ void *fm_allocate (enum palloc_flags flags, bool lock) {
 
 /* Maps given user virtual address of the current thread to the
    frame at the given kernel virtual address */
-void assign_page_to_frame (void *kaddr, void *uaddr) { 
+void thread_fm_mapping (void *kaddr, void *uaddr) { 
   lock_acquire(&frames_lock);
   struct t_to_uaddr *thread_uaddr = malloc(sizeof(struct t_to_uaddr));
   thread_uaddr->t = thread_current();
   thread_uaddr->uaddr = uaddr;
-  struct frame *fm = frame_lookup(kaddr);
+  struct frame *fm = find_fm(kaddr);
   hash_insert(&fm->thread_to_uaddr, &thread_uaddr->elem);
   fm->pinned = false;
   cond_signal(&frames_locked, &frames_lock);
@@ -111,22 +111,23 @@ void assign_page_to_frame (void *kaddr, void *uaddr) {
 /* If no other threads are using the frame,
    deletes entry from frame table and frees frame and user pool
    address. */
-void free_uninstalled_frame (void *addr) {
+void release_unused_fm (void *addr) {
   lock_acquire(&frames_lock);
-  struct frame *fm = frame_lookup(addr);
+  struct frame *fm = find_fm(addr);
   fm->pinned = false;
   if(hash_empty(&fm->thread_to_uaddr)){
     palloc_free_page(addr);
     hash_delete(&frames, &fm->elem);
     free(fm);
   }
+  lock_release(&frames_lock);
 }
 
 /* If no other threads are using the frame, deletes entry from frame table
    and frees frame and user pool address. */
-void free_frame (struct page *p, bool freepdir) 
+void release_fm (struct page *p, bool freepdir) 
   p->isLoaded = false;
-  struct frame *fm = frame_lookup(p->kaddr);
+  struct frame *fm = find_fm(p->kaddr);
   struct t_to_uaddr *thread_to_uaddr;
   struct thread *curr = thread_current();
   if(fm){
@@ -153,19 +154,19 @@ void free_frame (struct page *p, bool freepdir)
 
 /* Returns true if PTE_A flag is set for any of the
    page table entries for this frame */
-bool is_frame_accessed (struct frame *f) {
+bool if_fm_accessed (struct frame *f) {
     return ttu_ormap (f, &pagedir_is_accessed);
 }
 
 /* Returns true if PTE_D flag is set for any of the
    page table entries for this frame */
-bool is_frame_dirty (struct frame *f) {
+bool if_fm_dirty (struct frame *f) {
     return ttu_ormap (f, &pagedir_is_dirty);
 }
 
 /* Returns the frame at the given kernel virtual address,
    or a null pointer if no such frame exists. */
-struct frame *frame_lookup (void *address)
+struct frame *find_fm (void *address)
 {
   struct frame fm;
   fm.k_addr = address;

@@ -31,13 +31,13 @@ struct lock frames_lock;       /* Frame lock */
 struct condition frames_locked;  /* Condition to wait on for any frame to unpin\unlock */
   
 void *fm_allocate (enum palloc_flags flags, bool lock);
-void free_frame (struct page *p, bool freepdir);
-void free_uninstalled_frame (void *addr);
+void release_fm (struct page *p, bool freepdir);
+void release_unused_fm (void *addr);
 void fmt_init (void);
-void assign_page_to_frame (void *kaddr, void *uaddr);
-struct frame *frame_lookup (void *address);
-bool is_frame_accessed (struct frame *f);
-bool is_frame_dirty (struct frame *f);
+void thread_fm_mapping (void *kaddr, void *uaddr);
+struct frame *find_fm (void *address);
+bool if_fm_accessed (struct frame *f);
+bool if_fm_dirty (struct frame *f);
 
 unsigned frame_hash_func (const struct hash_elem *e, void *aux UNUSED);
 bool frame_hash_less_func (const struct hash_elem *a,

@@ -44,7 +44,7 @@ void validate_addr (void *addr, void *esp, bool writable) {
     struct page *p = find_page(addr, thread_current());
     struct frame *fm = NULL;
     if (p != NULL && p->isLoaded){
-        fm = frame_lookup(p->kaddr);
+        fm = find_fm(p->kaddr);
         fm->locked = true;
     }
     lock_release(&frames_lock);
@@ -232,7 +232,7 @@ void release_args (int *ptr, int count, void **argv) {
         lock_acquire(&frames_lock);
         struct page *p = find_page(ptr, thread_current());
         if (p && p->isLoaded){
-            struct frame *fm = frame_lookup(p->kaddr);
+            struct frame *fm = find_fm(p->kaddr);
             fm->locked = false;
         }
         lock_release(&frames_lock);
@@ -244,19 +244,19 @@ void release_args (int *ptr, int count, void **argv) {
 void release_buf (const char* buf_ptr, int size) {
     lock_acquire(&frames_lock);
     struct page  *p  = find_page(buf_ptr, thread_current());
-    struct frame *fm = frame_lookup(p->kaddr);
+    struct frame *fm = find_fm(p->kaddr);
     fm->locked = false;
     int page_cnt = size/PGSIZE;
     int remain   = size%PGSIZE;
     int i;
     for (i= 1; i <= page_cnt; i++) {
         p = find_page(buf_ptr + i * PGSIZE, thread_current());
-        fm = frame_lookup(p->kaddr);
+        fm = find_fm(p->kaddr);
         fm->locked = false;
     }
     if (remain > 0) {
         p = find_page(buf_ptr + size, thread_current());
-        fm = frame_lookup(p->kaddr);
+        fm = find_fm(p->kaddr);
         fm->locked = false;
     }
     cond_signal(&frames_locked, &frames_lock);

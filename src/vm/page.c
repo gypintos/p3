@@ -110,7 +110,7 @@ bool load_page_to_frame(struct page *p, bool lock)
     }
   }
   if (install_page(p->vaddr, kaddr, p->writable) == false){
-    free_uninstalled_frame(kaddr);
+    release_unused_fm(kaddr);
     return false;
   } else {
     p->isLoaded = true;
@@ -139,7 +139,7 @@ bool inc_stack(void * vaddr, bool lock, void *kaddr)
     p->isLoaded = true;
     return true;
   } else {
-    free_uninstalled_frame(kaddr);
+    release_unused_fm(kaddr);
     hash_delete(&thread_current()->page_table, &p->elem);
     free(p);
     return false;
@@ -159,7 +159,7 @@ bool get_page_from_file (uint8_t *kaddr, struct file *file,
     memset(kaddr + pr_bytes, 0, pz_bytes);
     return true;
   } else {
-    free_uninstalled_frame(kaddr);
+    release_unused_fm(kaddr);
     return false;
   }
 
@@ -167,9 +167,9 @@ bool get_page_from_file (uint8_t *kaddr, struct file *file,
 
 void free_mmap_page_to_file (struct page *p) {
   if (p->isLoaded){
-    struct frame *fm = frame_lookup(p->kaddr);
+    struct frame *fm = find_fm(p->kaddr);
     ASSERT(fm);
-    if (is_frame_dirty(fm)){
+    if (if_fm_dirty(fm)){
       lock_acquire(&frames_lock);
       fm->pinned = true;
       lock_release(&frames_lock);
@@ -181,20 +181,20 @@ void free_mmap_page_to_file (struct page *p) {
 
       lock_acquire(&frames_lock);
       fm->pinned = false;
-      free_frame(p, true);
+      release_fm(p, true);
       lock_release(&frames_lock);
     } else {
       lock_acquire(&frames_lock);
-      free_frame(p,true);
+      release_fm(p,true);
       lock_release(&frames_lock);
     }
   }
 }
 
 void write_mmap_page_to_file (struct page *p) {
-  struct frame* fm = frame_lookup(p->kaddr);
+  struct frame* fm = find_fm(p->kaddr);
   ASSERT(fm);
-  if (is_frame_dirty(fm)){
+  if (if_fm_dirty(fm)){
     lock_acquire(&filesys_lock);
     uint32_t fw_bytes = file_write_at(p->file, p->kaddr, p->read_bytes, p->offset);
     lock_release(&filesys_lock);
@@ -210,7 +210,7 @@ void remove_page (struct hash_elem *h_elem, void *aux UNUSED)
     if (p->isSwapped){
       release_sector(p->sec_addr);
     } else {
-      free_frame(p, false);
+      release_fm(p, false);
     }
   } 
   free(p); 
@@ -319,13 +319,13 @@ bool install_shared_page (struct page *p, bool lock) {
       lock_acquire(&frames_lock);
       struct page* p_other = find_page(p->vaddr, t);
       if(p_other->isLoaded){
-        struct frame* fm = frame_lookup(p_other->kaddr);
+        struct frame* fm = find_fm(p_other->kaddr);
         p->kaddr = fm->k_addr;
         fm->pinned = true;
         lock_release(&frames_lock);
         lock_release(&ht_exec_to_threads_lock);
         if (!install_page(p->vaddr, fm->k_addr, p->writable)){
-          free_uninstalled_frame(fm->k_addr);
+          release_unused_fm(fm->k_addr);
           return false;
         } else {
           fm->locked = lock;

@@ -112,7 +112,7 @@ pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable)
     {
       ASSERT ((*pte & PTE_P) == 0);
       *pte = pte_create_user (kpage, writable);
-      assign_page_to_frame(kpage, upage);
+      thread_fm_mapping(kpage, upage);
       return true;
     }
   else
