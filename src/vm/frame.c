@@ -125,7 +125,7 @@ void release_unused_fm (void *addr) {
 
 /* If no other threads are using the frame, deletes entry from frame table
    and frees frame and user pool address. */
-void release_fm (struct page *p, bool freepdir) 
+void release_fm (struct page *p, bool freepdir) {
   p->isLoaded = false;
   struct frame *fm = find_fm(p->kaddr);
   struct t_to_uaddr *thread_to_uaddr;
