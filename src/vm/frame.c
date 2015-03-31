@@ -294,41 +294,48 @@ bool is_frame_dirty (struct frame *f) {
    or a null pointer if no such frame exists. */
 struct frame *frame_lookup (void *address)
 {
-  struct frame f;
-  struct hash_elem *e;
+  // struct frame f;
+  // struct hash_elem *e;
 
-  f.k_addr = address;
-  e = hash_find (&frames, &f.elem);
-  return e != NULL ? hash_entry (e, struct frame, elem) : NULL;
+  // f.k_addr = address;
+  // e = hash_find (&frames, &f.elem);
+  // return e != NULL ? hash_entry (e, struct frame, elem) : NULL;
 
-  // struct frame *fm;
-  // fm->k_addr = address;
-  // struct hash_elem *ele = hash_find(fm, fm->elem); 
-  // if(ele){
-  //   return hash_entry(ele, struct frame, elem);
-  // }else{
-  //   return NULL;
-  // }
+  struct frame *fm;
+  fm->k_addr = address;
+  struct hash_elem *ele = hash_find(fm, fm->elem); 
+  if(ele){
+    return hash_entry(ele, struct frame, elem);
+  }else{
+    return NULL;
+  }
 
 
 }
 
 /* Returns hash of the frame. */
 unsigned frame_hash_func (const struct hash_elem *e, void *aux UNUSED) {
-    struct frame *f = hash_entry(e, struct frame, elem);
-    return (uintptr_t)f->k_addr;
+    struct frame *fm = hash_entry(e, struct frame, elem);
+    return (uintptr_t)fm->k_addr;
 }
 
 /* Returns true if virtual kernel address of frame a is
    less than virtual kernel address of frame b. */
+
+// bool
+// frame_hash_less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED)
+// {
+//     struct frame *f_a = hash_entry (a, struct frame, elem);
+//     struct frame *f_b = hash_entry (b, struct frame, elem);
+//     return (uintptr_t)f_a->k_addr < (uintptr_t)f_b->k_addr;
+// }
+
 bool
-frame_hash_less_func (const struct hash_elem *a,
-                      const struct hash_elem *b,
-                      void *aux UNUSED)
+frame_hash_less_func (const struct hash_elem *first, const struct hash_elem *second, void *aux UNUSED)
 {
-    struct frame *f_a = hash_entry (a, struct frame, elem);
-    struct frame *f_b = hash_entry (b, struct frame, elem);
-    return (uintptr_t)f_a->k_addr < (uintptr_t)f_b->k_addr;
+    struct frame *fm_first = hash_entry (first, struct frame, elem);
+    struct frame *fm_second = hash_entry (second, struct frame, elem);
+    return (uintptr_t)fm_first->k_addr < (uintptr_t)fm_second->k_addr;
 }
 
 
