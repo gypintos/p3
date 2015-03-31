@@ -94,37 +94,6 @@ void *fm_allocate (enum palloc_flags flags, bool lock) {
   return kaddr;
 }
 
-/* Maps given user virtual address of the current thread to the
-   frame at the given kernel virtual address */
-void thread_fm_mapping (void *kaddr, void *uaddr) { 
-  lock_acquire(&frame_table_lock);
-  struct thread_uaddr *thread_uaddr = malloc(sizeof(struct thread_uaddr));
-  thread_uaddr->t = thread_current();
-  thread_uaddr->uaddr = uaddr;
-  struct frame *fm = find_fm(kaddr);
-  hash_insert(&fm->ht_thread_uaddr, &thread_uaddr->elem);
-  fm->isPinned = false;
-  cond_signal(&frame_table_cond, &frame_table_lock);
-  lock_release(&frame_table_lock);
-}
-
-/* If no other threads are using the frame,
-   deletes entry from frame table and frees frame and user pool
-   address. */
-void release_unused_fm (void *addr) {
-  lock_acquire(&frame_table_lock);
-  struct frame *fm = find_fm(addr);
-  fm->isPinned = false;
-  if(hash_empty(&fm->ht_thread_uaddr)){
-    palloc_free_page(addr);
-    hash_delete(&frames_table, &fm->elem);
-    free(fm);
-  }
-  lock_release(&frame_table_lock);
-}
-
-/* If no other threads are using the frame, deletes entry from frame table
-   and frees frame and user pool address. */
 void release_fm (struct page *p, bool freepdir) {
   p->isLoaded = false;
   struct frame *fm = find_fm(p->kaddr);
@@ -152,20 +121,18 @@ void release_fm (struct page *p, bool freepdir) {
   }   
 }
 
-/* Returns true if PTE_A flag is set for any of the
-   page table entries for this frame */
-bool if_fm_accessed (struct frame *f) {
-    return apply_or_to_fmt (f, &pagedir_is_accessed);
+void release_unused_fm (void *addr) {
+  lock_acquire(&frame_table_lock);
+  struct frame *fm = find_fm(addr);
+  fm->isPinned = false;
+  if(hash_empty(&fm->ht_thread_uaddr)){
+    palloc_free_page(addr);
+    hash_delete(&frames_table, &fm->elem);
+    free(fm);
+  }
+  lock_release(&frame_table_lock);
 }
 
-/* Returns true if PTE_D flag is set for any of the
-   page table entries for this frame */
-bool if_fm_dirty (struct frame *f) {
-    return apply_or_to_fmt (f, &pagedir_is_dirty);
-}
-
-/* Returns the frame at the given kernel virtual address,
-   or a null pointer if no such frame exists. */
 struct frame *find_fm (void *address)
 {
   struct frame fm;
@@ -178,14 +145,30 @@ struct frame *find_fm (void *address)
   }
 }
 
-/* Returns hash of the frame. */
+bool if_fm_dirty (struct frame *f) {
+    return apply_or_to_fmt (f, &pagedir_is_dirty);
+}
+
+bool if_fm_accessed (struct frame *f) {
+    return apply_or_to_fmt (f, &pagedir_is_accessed);
+}
+
+void thread_fm_mapping (void *kaddr, void *uaddr) { 
+  lock_acquire(&frame_table_lock);
+  struct thread_uaddr *thread_uaddr = malloc(sizeof(struct thread_uaddr));
+  thread_uaddr->t = thread_current();
+  thread_uaddr->uaddr = uaddr;
+  struct frame *fm = find_fm(kaddr);
+  hash_insert(&fm->ht_thread_uaddr, &thread_uaddr->elem);
+  fm->isPinned = false;
+  cond_signal(&frame_table_cond, &frame_table_lock);
+  lock_release(&frame_table_lock);
+}
+
 unsigned get_frame_hash (const struct hash_elem *e, void *aux UNUSED) {
     struct frame *fm = hash_entry(e, struct frame, elem);
     return (uintptr_t)fm->k_addr;
 }
-
-/* Returns true if virtual kernel address of frame a is
-   less than virtual kernel address of frame b. */
 
 bool
 cmp_frame_hash (const struct hash_elem *first, const struct hash_elem *second, void *aux UNUSED)
@@ -195,33 +178,6 @@ cmp_frame_hash (const struct hash_elem *first, const struct hash_elem *second, v
     return (uintptr_t)fm_first->k_addr < (uintptr_t)fm_second->k_addr;
 }
 
-
-/* Returns hash of the frame. */
-unsigned get_thread_uaddr_hash (const struct hash_elem *e, void *aux UNUSED) {
-  struct thread_uaddr *thread_to_uaddr = hash_entry(e, struct thread_uaddr, elem);
-  return hash_bytes(thread_to_uaddr->t, sizeof thread_to_uaddr->t);
-}
-
-/* Returns true if address of frame a is less than address of frame b. */
-bool cmp_thread_uaddr_hash (const struct hash_elem *first, const struct hash_elem *second, void *aux UNUSED) {
-  struct thread_uaddr *u_first = hash_entry (first, struct thread_uaddr, elem);
-  struct thread_uaddr *u_second = hash_entry (second, struct thread_uaddr, elem);
-  return u_first->t < u_second->t;
-}
-
-/* Frees memory allocated to a frame */
-void remove_thread_uaddr (struct hash_elem *e, void *aux UNUSED) {
-  struct thread_uaddr *thread_to_uaddr = hash_entry (e, struct thread_uaddr, elem);
-  free(thread_to_uaddr);
-}
-
-void set_page_unaccessed (struct hash_elem *e, void *aux UNUSED) {
-  struct thread_uaddr *thread_to_uaddr = hash_entry (e, struct thread_uaddr, elem);
-  pagedir_set_accessed(thread_to_uaddr->t->pagedir, thread_to_uaddr->uaddr, false); 
-}
-
-/* Returns the thread to uddr mapping,
-   or a null pointer if no such mapping exists. */
 struct thread_uaddr *find_thread_uaddr (struct frame *f, struct thread *t)
 {
   struct thread_uaddr thread_to_uaddr;
@@ -234,8 +190,27 @@ struct thread_uaddr *find_thread_uaddr (struct frame *f, struct thread *t)
   }
 }
 
-/* Returns true if after applying function to hash table entries
-   at least one returns true, false - otherwise */
+unsigned get_thread_uaddr_hash (const struct hash_elem *e, void *aux UNUSED) {
+  struct thread_uaddr *thread_to_uaddr = hash_entry(e, struct thread_uaddr, elem);
+  return hash_bytes(thread_to_uaddr->t, sizeof thread_to_uaddr->t);
+}
+
+bool cmp_thread_uaddr_hash (const struct hash_elem *first, const struct hash_elem *second, void *aux UNUSED) {
+  struct thread_uaddr *u_first = hash_entry (first, struct thread_uaddr, elem);
+  struct thread_uaddr *u_second = hash_entry (second, struct thread_uaddr, elem);
+  return u_first->t < u_second->t;
+}
+
+void remove_thread_uaddr (struct hash_elem *e, void *aux UNUSED) {
+  struct thread_uaddr *thread_to_uaddr = hash_entry (e, struct thread_uaddr, elem);
+  free(thread_to_uaddr);
+}
+
+void set_page_unaccessed (struct hash_elem *e, void *aux UNUSED) {
+  struct thread_uaddr *thread_to_uaddr = hash_entry (e, struct thread_uaddr, elem);
+  pagedir_set_accessed(thread_to_uaddr->t->pagedir, thread_to_uaddr->uaddr, false); 
+}
+
 bool apply_or_to_fmt (struct frame *fm, bool_fun b_fun) {
   hash_first(&fm->iter_bit_htu, &fm->ht_thread_uaddr);
   while(hash_next(&fm->iter_bit_htu)){

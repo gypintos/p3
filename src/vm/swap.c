@@ -13,6 +13,18 @@ void swap_init(void)
   lock_init(&sw_lock);
 }
 
+void swap_get(block_sector_t sec, void * addr)
+{
+  int i = 0; 
+  while (i < SEC_NUM){
+    block_read(sw, i + SEC_NUM * sec, addr + i* BLOCK_SECTOR_SIZE);
+    i++;
+  }
+  lock_acquire(&sw_lock);
+  bitmap_set (sw_table, sec, false);
+  lock_release(&sw_lock);
+}
+
 block_sector_t swap_set(void * addr)
 {
   lock_acquire(&sw_lock);
@@ -30,17 +42,6 @@ block_sector_t swap_set(void * addr)
   return sec;
 }
 
-void swap_get(block_sector_t sec, void * addr)
-{
-  int i = 0; 
-  while (i < SEC_NUM){
-    block_read(sw, i + SEC_NUM * sec, addr + i* BLOCK_SECTOR_SIZE);
-    i++;
-  }
-  lock_acquire(&sw_lock);
-  bitmap_set (sw_table, sec, false);
-  lock_release(&sw_lock);
-}
 
 void
 release_sector (block_sector_t sec)

@@ -9,7 +9,7 @@ struct bitmap *sw_table;
 struct lock sw_lock;
 
 void swap_init (void);
-void swap_get (block_sector_t sector, void * addr);
 block_sector_t swap_set (void * addr);
+void swap_get (block_sector_t sector, void * addr);
 void release_sector (block_sector_t sector);
-#endif /* vm/swap.h */
+#endif

@@ -40,13 +40,12 @@ struct page {
   uint32_t zero_bytes;      
 };
 
-unsigned hash_fun_exec_name(const struct hash_elem *elem, void *aux UNUSED);
-bool cmp_exec_name(const struct hash_elem *a, const struct hash_elem *b,
-                   void *aux UNUSED);
-
 unsigned hash_func_page (const struct hash_elem *p_, void *aux UNUSED);
 bool cmp_page_hash (const struct hash_elem *a_, const struct hash_elem *b_,
                 void *aux UNUSED);
+unsigned hash_fun_exec_name(const struct hash_elem *elem, void *aux UNUSED);
+bool cmp_exec_name(const struct hash_elem *a, const struct hash_elem *b,
+                   void *aux UNUSED);
 bool inc_stack(void * vaddr, bool lock, void *kaddr);
 void insert_stack_page (void * vaddr, bool writable, void * faddr);
 void insert_segment_page (void * vaddr, bool writable, off_t of,
@@ -56,13 +55,13 @@ void insert_mmap_page (void * vaddr, off_t ofs, struct file *file,
 bool load_page_to_frame(struct page *p, bool pin);
 void free_mmap_page_to_file (struct page *p);
 void write_mmap_page_to_file (struct page *p);
+struct exe_to_threads* find_exe_to_threads_entry (char *exe_key);
+void insert_exe_to_threads_entry (struct thread *t);
+void delete_exe_to_threads_entry (struct thread *t);
 struct page* find_page (const void *address, struct thread *t);
 void remove_page (struct hash_elem *p_, void *aux UNUSED);
 void page_to_swap(struct page *p);
 void page_from_swap(struct page *p, void *k_addr);
-struct exe_to_threads* find_exe_to_threads_entry (char *exe_key);
-void insert_exe_to_threads_entry (struct thread *t);
-void delete_exe_to_threads_entry (struct thread *t);
 #endif /* vm/page.h */
 
 

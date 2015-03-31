@@ -90,7 +90,7 @@ void validate_buf (char* buf_ptr, int size, void* esp, bool writable) {
 static void
 syscall_handler (struct intr_frame *f)
 {
- int *syscall = (int *)f->esp;
+ int* syscall = (int *)f->esp;
  validate_addr(syscall, NULL, /* Writeable */ false);
     switch (*syscall) {
         case SYS_HALT: {
