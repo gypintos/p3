@@ -249,12 +249,15 @@ void free_frame (struct page *p, bool freepdir) {
     //     }
     // }
 
+    p->isLoaded = false;
     struct frame *fm = frame_lookup(p->kaddr);
     struct t_to_uaddr *thread_to_uaddr;
     struct thread *curr = thread_current();
     if(fm){
       thread_to_uaddr = t_to_uaddr_lookup(fm, curr);
       if(thread_to_uaddr){
+        hash_delete(&fm->thread_to_uaddr, &thread_to_uaddr->elem);
+
         if(fm->pinned == NULL && hash_empty(&fm->thread_to_uaddr)){
           if(freepdir){
             pagedir_clear_page(curr->pagedir, thread_to_uaddr->uaddr);
@@ -267,15 +270,12 @@ void free_frame (struct page *p, bool freepdir) {
           pagedir_clear_page(curr->pagedir, thread_to_uaddr->uaddr);
           free(thread_to_uaddr);
         }
-        hash_delete(&fm->thread_to_uaddr, &thread_to_uaddr->elem);
-
+        
       }
       
     }
 
     
-    p->isLoaded = false;
-
 }
 
 /* Returns true if PTE_A flag is set for any of the
@@ -300,6 +300,17 @@ struct frame *frame_lookup (void *address)
   f.k_addr = address;
   e = hash_find (&frames, &f.elem);
   return e != NULL ? hash_entry (e, struct frame, elem) : NULL;
+
+  // struct frame *fm;
+  // fm->k_addr = address;
+  // struct hash_elem *ele = hash_find(fm, fm->elem); 
+  // if(ele){
+  //   return hash_entry(ele, struct frame, elem);
+  // }else{
+  //   return NULL;
+  // }
+
+
 }
 
 /* Returns hash of the frame. */
