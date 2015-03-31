@@ -58,116 +58,116 @@ struct frame *select_fm (void) {
    panicks kernel otherwise.*/
 void *allocate_frame (enum palloc_flags flags, bool lock) {
 
-    lock_acquire(&frames_lock);
-    void *addr = palloc_get_page (flags | PAL_USER);
-
-    //
     // lock_acquire(&frames_lock);
-    // void *kaddr = palloc_get_page(PAL_USER | flags);
-    //
+    // void *addr = palloc_get_page (flags | PAL_USER);
+
+    
+    lock_acquire(&frames_lock);
+    void *kaddr = palloc_get_page(PAL_USER | flags);
+    
 
     /*There are free frames in the user pool */
-    if (addr != NULL) {
+    // if (addr != NULL) {
 
-        struct frame *f = malloc (sizeof (struct frame));
-        f->k_addr = addr;
-        f->pinned = true;
-        f->locked = lock;
-        hash_init(&f->thread_to_uaddr, t_to_uaddr_hash_func, t_to_uaddr_hash_less_func, NULL);
-        hash_insert(&frames, &f->elem);
-    }
-    else {
-        /* Some of the used frames should be freed */
-        struct frame *f = select_fm();
-        f->locked = lock;
-        f->pinned = true;
-        addr = f->k_addr;
-        struct t_to_uaddr *ttu;
-        struct hash *ttus = &f->thread_to_uaddr;
-        hash_first(&f->ttu_i, ttus);
-        while (hash_next (&f->ttu_i))
-        {
-          ttu = hash_entry (hash_cur (&f->ttu_i), struct t_to_uaddr, elem);
-          struct page *p = find_page(ttu->uaddr, ttu->t);
-          /* Invalidate to eliminate reads\writes */
-          p->isLoaded = false;
-          pagedir_clear_page (ttu->t->pagedir, p->vaddr);
-          switch (p->type) {
-               case MMAP: {
-                  write_mmap_page_to_file (p);
-                  break;
-              }
-              case SEGMENT: {
-                  if (p->writable) {
-                      /* Segment that is once dirty, is always dirty */
-                      if (!p->isDirty) {
-                        bool dirty = is_frame_dirty(f);
-                        if (dirty) {
-                          p->isDirty = dirty;
-                        }
-                      }
-                      if (p->isDirty) {
-                          page_to_swap(p);
-                      }
-                  }
-                  break;
-              }
-              case STACK: {
-                  page_to_swap(p);
-                  break;
-                }
-              default: NOT_REACHED ();
-            }
-        }
-        hash_clear(&f->thread_to_uaddr, t_to_uaddr_destructor_func);
-
-    }
-
-
-    //
-    // struct frame *fm;
-    // if (kaddr == NULL){
-    //   fm = select_fm();
-    //   fm->pinned = true;
-    //   fm->locked = true;
-    //   kaddr = fm->k_addr;
-    //   struct hash *ht_thread_uaddr = &fm->thread_to_uaddr;
-    //   hash_first(&fm->ttu_i, ht_thread_uaddr);
-    //   struct t_to_uaddr *thread_uaddr;
-    //   while (hash_next(&fm->ttu_i)){
-    //     thread_uaddr = hash_entry(hash_cur(&fm->ttu_i), struct t_to_uaddr, elem);
-    //     struct page* p = find_page(thread_uaddr->uaddr, thread_uaddr->t);
-    //     p->isLoaded = false;
-    //     pagedir_clear_page(thread_uaddr->t->pagedir, p->vaddr);
-    //     if (p->type == STACK){
-    //       page_to_swap(p);
-    //     } else if (p->type == SEGMENT){
-    //       if (p->writable && (is_frame_dirty(fm) || p->isDirty)){
-    //         p->isDirty = true;
-    //         page_to_swap(p);
-    //       }
-    //     } else {
-    //       write_mmap_page_to_file(p);
+    //     struct frame *f = malloc (sizeof (struct frame));
+    //     f->k_addr = addr;
+    //     f->pinned = true;
+    //     f->locked = lock;
+    //     hash_init(&f->thread_to_uaddr, t_to_uaddr_hash_func, t_to_uaddr_hash_less_func, NULL);
+    //     hash_insert(&frames, &f->elem);
+    // }
+    // else {
+    //     /* Some of the used frames should be freed */
+    //     struct frame *f = select_fm();
+    //     f->locked = lock;
+    //     f->pinned = true;
+    //     addr = f->k_addr;
+    //     struct t_to_uaddr *ttu;
+    //     struct hash *ttus = &f->thread_to_uaddr;
+    //     hash_first(&f->ttu_i, ttus);
+    //     while (hash_next (&f->ttu_i))
+    //     {
+    //       ttu = hash_entry (hash_cur (&f->ttu_i), struct t_to_uaddr, elem);
+    //       struct page *p = find_page(ttu->uaddr, ttu->t);
+    //       /* Invalidate to eliminate reads\writes */
+    //       p->isLoaded = false;
+    //       pagedir_clear_page (ttu->t->pagedir, p->vaddr);
+    //       switch (p->type) {
+    //            case MMAP: {
+    //               write_mmap_page_to_file (p);
+    //               break;
+    //           }
+    //           case SEGMENT: {
+    //               if (p->writable) {
+    //                   /* Segment that is once dirty, is always dirty */
+    //                   if (!p->isDirty) {
+    //                     bool dirty = is_frame_dirty(f);
+    //                     if (dirty) {
+    //                       p->isDirty = dirty;
+    //                     }
+    //                   }
+    //                   if (p->isDirty) {
+    //                       page_to_swap(p);
+    //                   }
+    //               }
+    //               break;
+    //           }
+    //           case STACK: {
+    //               page_to_swap(p);
+    //               break;
+    //             }
+    //           default: NOT_REACHED ();
+    //         }
     //     }
-    //   }
-    //   hash_clear(&fm->thread_to_uaddr, t_to_uaddr_destructor_func);
-    // } else {
-    //   fm = malloc(sizeof(struct frame));
-    //   fm->locked = lock;
-    //   fm->k_addr = kaddr;
-    //   fm->pinned = true;
-    //   hash_init(&fm->thread_to_uaddr, t_to_uaddr_hash_func, t_to_uaddr_hash_less_func, NULL);
-    //   hash_insert(&frames, &fm->elem);
+    //     hash_clear(&f->thread_to_uaddr, t_to_uaddr_destructor_func);
+
     // }
 
-    // lock_release(&frames_lock);
-    // return kaddr;
 
-    //
-
+    
+    struct frame *fm;
+    if (kaddr == NULL){
+      fm = select_fm();
+      fm->pinned = true;
+      fm->locked = lock;
+      kaddr = fm->k_addr;
+      struct hash *ht_thread_uaddr = &fm->thread_to_uaddr;
+      hash_first(&fm->ttu_i, ht_thread_uaddr);
+      struct t_to_uaddr *thread_uaddr;
+      while (hash_next(&fm->ttu_i)){
+        thread_uaddr = hash_entry(hash_cur(&fm->ttu_i), struct t_to_uaddr, elem);
+        struct page* p = find_page(thread_uaddr->uaddr, thread_uaddr->t);
+        p->isLoaded = false;
+        pagedir_clear_page(thread_uaddr->t->pagedir, p->vaddr);
+        if (p->type == STACK){
+          page_to_swap(p);
+        } else if (p->type == SEGMENT){
+          if (p->writable && (is_frame_dirty(fm) || p->isDirty)){
+            p->isDirty = true;
+            page_to_swap(p);
+          }
+        } else {
+          write_mmap_page_to_file(p);
+        }
+      }
+      hash_clear(&fm->thread_to_uaddr, t_to_uaddr_destructor_func);
+    } else {
+      fm = malloc(sizeof(struct frame));
+      fm->locked = lock;
+      fm->k_addr = kaddr;
+      fm->pinned = true;
+      hash_init(&fm->thread_to_uaddr, t_to_uaddr_hash_func, t_to_uaddr_hash_less_func, NULL);
+      hash_insert(&frames, &fm->elem);
+    }
 
     lock_release(&frames_lock);
-    return addr;
+    return kaddr;
+
+    
+
+
+    // lock_release(&frames_lock);
+    // return addr;
 }
 
 /* Maps given user virtual address of the current thread to the
