@@ -301,9 +301,9 @@ struct frame *frame_lookup (void *address)
   // e = hash_find (&frames, &f.elem);
   // return e != NULL ? hash_entry (e, struct frame, elem) : NULL;
 
-  struct frame *fm;
-  fm->k_addr = address;
-  struct hash_elem *ele = hash_find(&frames, &fm->elem); 
+  struct frame fm;
+  fm.k_addr = address;
+  struct hash_elem *ele = hash_find(&frames, &fm.elem); 
   if(ele){
     return hash_entry(ele, struct frame, elem);
   }else{
