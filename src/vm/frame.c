@@ -190,7 +190,7 @@ void assign_page_to_frame (void *kaddr, void *uaddr) {
     struct frame *fm = frame_lookup(kaddr);
     hash_insert(&fm->thread_to_uaddr, &thread_uaddr->elem);
     fm->pinned = false;
-    cond_signal(&frames_lock, &frames_lock);
+    cond_signal(&frames_locked, &frames_lock);
     lock_release(&frames_lock);
 
 
@@ -209,6 +209,10 @@ void free_uninstalled_frame (void *addr) {
     }
     f->pinned = false;
     lock_release(&frames_lock);
+
+    lock_acquire(&frames_lock);
+    struct frame *fm = frame_lookup(addr);
+
 }
 
 /* If no other threads are using the frame, deletes entry from frame table
