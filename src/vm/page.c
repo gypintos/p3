@@ -171,7 +171,7 @@ void free_mmap_page_to_file (struct page *p) {
     ASSERT(fm);
     if (if_fm_dirty(fm)){
       lock_acquire(&frame_table_lock);
-      fm->pinned = true;
+      fm->isPinned = true;
       lock_release(&frame_table_lock);
 
       lock_acquire(&filesys_lock);
@@ -180,7 +180,7 @@ void free_mmap_page_to_file (struct page *p) {
       lock_release(&filesys_lock);
 
       lock_acquire(&frame_table_lock);
-      fm->pinned = false;
+      fm->isPinned = false;
       release_fm(p, true);
       lock_release(&frame_table_lock);
     } else {
@@ -321,7 +321,7 @@ bool install_shared_page (struct page *p, bool lock) {
       if(p_other->isLoaded){
         struct frame* fm = find_fm(p_other->kaddr);
         p->kaddr = fm->k_addr;
-        fm->pinned = true;
+        fm->isPinned = true;
         lock_release(&frame_table_lock);
         lock_release(&ht_exec_to_threads_lock);
         if (!install_page(p->vaddr, fm->k_addr, p->writable)){

@@ -25,14 +25,14 @@ struct frame *select_fm (void) {
     fm = find_fm(clock_point);
     if (!fm){
       continue;
-    } else if (fm->locked || fm->pinned){
+    } else if (fm->locked || fm->isPinned){
       if (if_fm_accessed(fm)){
-        hash_apply(&fm->thread_to_uaddr, set_page_unaccessed);
+        hash_apply(&fm->ht_thread_uaddr, set_page_unaccessed);
       }
       continue;
     } else {
       if (if_fm_accessed(fm)){
-        hash_apply(&fm->thread_to_uaddr, set_page_unaccessed);
+        hash_apply(&fm->ht_thread_uaddr, set_page_unaccessed);
       } else {
         return fm;
       }
@@ -44,7 +44,7 @@ struct frame *select_fm (void) {
     hash_first(&fmt_iter, &frames_table);
     while(hash_next(&fmt_iter)){
       fm = hash_entry(hash_cur(&fmt_iter), struct frame, elem);
-      if (!fm->locked && !fm->pinned){
+      if (!fm->locked && !fm->isPinned){
         return fm;
       }
     }
@@ -58,14 +58,14 @@ void *fm_allocate (enum palloc_flags flags, bool lock) {
   struct frame *fm;
   if (kaddr == NULL){
     fm = select_fm();
-    fm->pinned = true;
+    fm->isPinned = true;
     fm->locked = lock;
     kaddr = fm->k_addr;
-    struct hash *ht_thread_uaddr = &fm->thread_to_uaddr;
-    hash_first(&fm->ttu_i, ht_thread_uaddr);
+    struct hash *ht_thread_uaddr = &fm->ht_thread_uaddr;
+    hash_first(&fm->iter_htu, ht_thread_uaddr);
     struct thread_uaddr *thread_uaddr;
-    while (hash_next(&fm->ttu_i)){
-      thread_uaddr = hash_entry(hash_cur(&fm->ttu_i), struct thread_uaddr, elem);
+    while (hash_next(&fm->iter_htu)){
+      thread_uaddr = hash_entry(hash_cur(&fm->iter_htu), struct thread_uaddr, elem);
       struct page* p = find_page(thread_uaddr->uaddr, thread_uaddr->t);
       p->isLoaded = false;
       pagedir_clear_page(thread_uaddr->t->pagedir, p->vaddr);
@@ -80,13 +80,13 @@ void *fm_allocate (enum palloc_flags flags, bool lock) {
         write_mmap_page_to_file(p);
       }
     }
-    hash_clear(&fm->thread_to_uaddr, remove_thread_uaddr);
+    hash_clear(&fm->ht_thread_uaddr, remove_thread_uaddr);
   } else {
     fm = malloc(sizeof(struct frame));
     fm->locked = lock;
     fm->k_addr = kaddr;
-    fm->pinned = true;
-    hash_init(&fm->thread_to_uaddr, get_thread_uaddr_hash, cmp_thread_uaddr_hash, NULL);
+    fm->isPinned = true;
+    hash_init(&fm->ht_thread_uaddr, get_thread_uaddr_hash, cmp_thread_uaddr_hash, NULL);
     hash_insert(&frames_table, &fm->elem);
   }
 
@@ -102,8 +102,8 @@ void thread_fm_mapping (void *kaddr, void *uaddr) {
   thread_uaddr->t = thread_current();
   thread_uaddr->uaddr = uaddr;
   struct frame *fm = find_fm(kaddr);
-  hash_insert(&fm->thread_to_uaddr, &thread_uaddr->elem);
-  fm->pinned = false;
+  hash_insert(&fm->ht_thread_uaddr, &thread_uaddr->elem);
+  fm->isPinned = false;
   cond_signal(&frame_table_cond, &frame_table_lock);
   lock_release(&frame_table_lock);
 }
@@ -114,8 +114,8 @@ void thread_fm_mapping (void *kaddr, void *uaddr) {
 void release_unused_fm (void *addr) {
   lock_acquire(&frame_table_lock);
   struct frame *fm = find_fm(addr);
-  fm->pinned = false;
-  if(hash_empty(&fm->thread_to_uaddr)){
+  fm->isPinned = false;
+  if(hash_empty(&fm->ht_thread_uaddr)){
     palloc_free_page(addr);
     hash_delete(&frames_table, &fm->elem);
     free(fm);
@@ -133,15 +133,15 @@ void release_fm (struct page *p, bool freepdir) {
   if(fm){
     thread_to_uaddr = find_thread_uaddr(fm, curr);
     if(thread_to_uaddr){
-      hash_delete(&fm->thread_to_uaddr, &thread_to_uaddr->elem);
+      hash_delete(&fm->ht_thread_uaddr, &thread_to_uaddr->elem);
 
-      if(fm->pinned == NULL && hash_empty(&fm->thread_to_uaddr)){
+      if(fm->isPinned == NULL && hash_empty(&fm->ht_thread_uaddr)){
         if(freepdir){
           pagedir_clear_page(curr->pagedir, thread_to_uaddr->uaddr);
           palloc_free_page(p->kaddr);
         }
         hash_delete(&frames_table, &fm->elem);
-        hash_destroy(&fm->thread_to_uaddr, remove_thread_uaddr);
+        hash_destroy(&fm->ht_thread_uaddr, remove_thread_uaddr);
         free(fm);
       }else{
         pagedir_clear_page(curr->pagedir, thread_to_uaddr->uaddr);
@@ -226,7 +226,7 @@ struct thread_uaddr *find_thread_uaddr (struct frame *f, struct thread *t)
 {
   struct thread_uaddr thread_to_uaddr;
   thread_to_uaddr.t = t;
-  struct hash_elem *ele = hash_find(&f->thread_to_uaddr, &thread_to_uaddr.elem);
+  struct hash_elem *ele = hash_find(&f->ht_thread_uaddr, &thread_to_uaddr.elem);
   if(ele){
     return hash_entry(ele, struct thread_uaddr, elem);
   }else{
@@ -236,11 +236,11 @@ struct thread_uaddr *find_thread_uaddr (struct frame *f, struct thread *t)
 
 /* Returns true if after applying function to hash table entries
    at least one returns true, false - otherwise */
-bool apply_or_to_fmt (struct frame *f, bool_fun pdir_func) {
-  hash_first(&f->ttu_i_b, &f->thread_to_uaddr);
-  while(hash_next(&f->ttu_i_b)){
-    struct thread_uaddr *thread_to_uaddr = hash_entry(hash_cur(&f->ttu_i_b), struct thread_uaddr, elem);
-    if(pdir_func(thread_to_uaddr->t->pagedir, thread_to_uaddr->uaddr)) return true;
+bool apply_or_to_fmt (struct frame *fm, bool_fun b_fun) {
+  hash_first(&fm->iter_bit_htu, &fm->ht_thread_uaddr);
+  while(hash_next(&fm->iter_bit_htu)){
+    struct thread_uaddr *thread_to_uaddr = hash_entry(hash_cur(&fm->iter_bit_htu), struct thread_uaddr, elem);
+    if(b_fun(thread_to_uaddr->t->pagedir, thread_to_uaddr->uaddr)) return true;
   }
   return false;
 

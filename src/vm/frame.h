@@ -5,13 +5,13 @@
 
 
 struct frame {
-  void *k_addr;         
-  bool pinned;          
-  bool locked;          
-  struct hash thread_to_uaddr; 
-  struct hash_iterator ttu_i;   
-  struct hash_iterator ttu_i_b; 
   struct hash_elem elem;
+  void* k_addr;         
+  bool isPinned;          
+  bool locked;          
+  struct hash ht_thread_uaddr; 
+  struct hash_iterator iter_htu;   
+  struct hash_iterator iter_bit_htu; 
 };
 
 struct thread_uaddr {
