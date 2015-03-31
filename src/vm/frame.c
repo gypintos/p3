@@ -200,18 +200,24 @@ void assign_page_to_frame (void *kaddr, void *uaddr) {
    deletes entry from frame table and frees frame and user pool
    address. */
 void free_uninstalled_frame (void *addr) {
-    lock_acquire(&frames_lock);
-    struct frame *f = frame_lookup(addr);
-    if (hash_empty (&f->thread_to_uaddr)) {
-        palloc_free_page(addr);
-        hash_delete(&frames, &f->elem);
-        free(f);
-    }
-    f->pinned = false;
-    lock_release(&frames_lock);
+    // lock_acquire(&frames_lock);
+    // struct frame *f = frame_lookup(addr);
+    // if (hash_empty (&f->thread_to_uaddr)) {
+    //     palloc_free_page(addr);
+    //     hash_delete(&frames, &f->elem);
+    //     free(f);
+    // }
+    // f->pinned = false;
+    // lock_release(&frames_lock);
 
     lock_acquire(&frames_lock);
     struct frame *fm = frame_lookup(addr);
+    fm->pinned = false;
+    if(hash_empty(&fm->thread_to_uaddr)){
+      palloc_free_page(addr);
+      hash_delete(&frames, &fm->elem);
+      free(fm);
+    }
 
 }
 
