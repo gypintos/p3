@@ -341,31 +341,41 @@ frame_hash_less_func (const struct hash_elem *first, const struct hash_elem *sec
 
 /* Returns hash of the frame. */
 unsigned t_to_uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED) {
-  // struct t_to_uaddr *ttu = hash_entry(e, struct t_to_uaddr, elem);
-  // return hash_bytes(ttu->t, sizeof ttu->t);
+  struct t_to_uaddr *ttu = hash_entry(e, struct t_to_uaddr, elem);
+  return hash_bytes(ttu->t, sizeof ttu->t);
 
-  return hash_bytes(&hash_entry(e, struct t_to_uaddr, elem)->t, 
-    sizeof &hash_entry(e, struct t_to_uaddr, elem)->t);
+  // return hash_bytes(&hash_entry(e, struct t_to_uaddr, elem)->t, 
+  //   sizeof &hash_entry(e, struct t_to_uaddr, elem)->t);
 }
 
 /* Returns true if address of frame a is less than address of frame b. */
-bool t_to_uaddr_hash_less_func (const struct hash_elem *a,
-                                const struct hash_elem *b,
-                                void *aux UNUSED) {
-  struct t_to_uaddr *ttu_a = hash_entry (a, struct t_to_uaddr, elem);
-  struct t_to_uaddr *ttu_b = hash_entry (b, struct t_to_uaddr, elem);
-  return ttu_a->t < ttu_b->t;
+// bool t_to_uaddr_hash_less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED) {
+//   struct t_to_uaddr *ttu_a = hash_entry (a, struct t_to_uaddr, elem);
+//   struct t_to_uaddr *ttu_b = hash_entry (b, struct t_to_uaddr, elem);
+//   return ttu_a->t < ttu_b->t;
+// }
+
+bool t_to_uaddr_hash_less_func (const struct hash_elem *first, const struct hash_elem *second, void *aux UNUSED) {
+  struct t_to_uaddr *u_first = hash_entry (first, struct t_to_uaddr, elem);
+  struct t_to_uaddr *u_second = hash_entry (second, struct t_to_uaddr, elem);
+  return u_first->t < u_second->t;
 }
 
 /* Frees memory allocated to a frame */
 void t_to_uaddr_destructor_func (struct hash_elem *e, void *aux UNUSED) {
-  struct t_to_uaddr *ttu = hash_entry (e, struct t_to_uaddr, elem);
-  free(ttu);
+  // struct t_to_uaddr *ttu = hash_entry (e, struct t_to_uaddr, elem);
+  // free(ttu);
+  struct t_to_uaddr *thread_to_uaddr = hash_entry (e, struct t_to_uaddr, elem);
+  free(thread_to_uaddr);
 }
 
 void clear_page_accessed (struct hash_elem *e, void *aux UNUSED) {
-  struct t_to_uaddr *ttu = hash_entry (e, struct t_to_uaddr, elem);
-  pagedir_set_accessed(ttu->t->pagedir, ttu->uaddr, false);
+  // struct t_to_uaddr *ttu = hash_entry (e, struct t_to_uaddr, elem);
+  // pagedir_set_accessed(ttu->t->pagedir, ttu->uaddr, false);
+
+  struct t_to_uaddr *thread_to_uaddr = hash_entry (e, struct t_to_uaddr, elem);
+  pagedir_set_accessed(thread_to_uaddr->t->pagedir, thread_to_uaddr->uaddr, false);
+
 }
 
 /* Returns the thread to uddr mapping,
