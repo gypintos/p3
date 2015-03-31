@@ -303,7 +303,7 @@ struct frame *frame_lookup (void *address)
 
   struct frame *fm;
   fm->k_addr = address;
-  struct hash_elem *ele = hash_find(fm, fm->elem); 
+  struct hash_elem *ele = hash_find(&frames, fm->elem); 
   if(ele){
     return hash_entry(ele, struct frame, elem);
   }else{
@@ -343,6 +343,9 @@ frame_hash_less_func (const struct hash_elem *first, const struct hash_elem *sec
 unsigned t_to_uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED) {
   struct t_to_uaddr *ttu = hash_entry(e, struct t_to_uaddr, elem);
   return hash_bytes(ttu->t, sizeof ttu->t);
+
+  // return hash_bytes(&hash_entry(e, struct t_to_uaddr, elem)->t, 
+  //   sizeof &hash_entry(e, struct t_to_uaddr, elem)->t);
 }
 
 /* Returns true if address of frame a is less than address of frame b. */
