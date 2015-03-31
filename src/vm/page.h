@@ -8,64 +8,63 @@
 #include "filesys/file.h"
 #include "threads/thread.h"
 
-
-/* To implement sharing, we use a table to map the executable file and
- a list of threads which run that executable. */
 struct hash ht_exec_to_threads;
-struct lock exec_list_lock;		 /* Lock of the ht_exec_to_threads */
+struct lock ht_exec_to_threads_lock;		 
 
-/* ht_exec_to_threads entry */
-struct exec_threads {
-  struct hash_elem hash_elem;   /* Hash table element */
-  char exec_name[16];           /* Executable file name */
-  struct list threads;          /* List of threads. */
+struct exe_to_threads {
+  char exe_key[16];
+  struct hash_elem hash_elem;
+  struct list threads;
 };
 
-enum page_type {
-  STACK,        /* Page contains stack data */
-  SEGMENT,      /* Page contains program segment */
-  MMAP          /* MMAP */
+enum page_t {
+  SEGMENT,
+  STACK,
+  MMAP
 };
 
-/* Supplemental page table entry */
 struct page {
-  struct hash_elem hash_elem;/* Hash table element. */
-  void *addr;                /* Virtual address. */
-  enum page_type type;       /* Page's type. */
-  bool writable;             /* Whether page is writable. */
-  bool segment_dirty;        /* Segment was written to at least once. */
-  bool swapped;              /* Is page swapped */
-  void *kaddr;               /* Kernel virtual address of the referred frame */
-  block_sector_t sector;     /* Swap address */
-  int fd;                    /* File descriptor */
-  struct file *file;         /* File that the page was mapped from */
-  int offset;                /* Offset in file */
-  uint32_t read_bytes;       /* Bytes that reads from file */
-  uint32_t zero_bytes;       /* Bytes that must be zeroed */
-  bool loaded;               /* Page loaded or not */
+  enum page_t type;       
+  struct hash_elem elem;
+  bool isDirty;        
+  bool isSwapped;              
+  bool writable;             
+  bool isLoaded;              
+  void *vaddr;                
+  void *kaddr;               
+  block_sector_t sec_addr;    
+  int fd;                    
+  int offset;                
+  struct file *file;         
+  uint32_t read_bytes;       
+  uint32_t zero_bytes;      
 };
 
 unsigned hash_fun_exec_name(const struct hash_elem *elem, void *aux UNUSED);
 bool cmp_exec_name(const struct hash_elem *a, const struct hash_elem *b,
-                  void *aux UNUSED);
+                   void *aux UNUSED);
 
-struct exec_threads * exec_threads_lookup (char *exec_name);
-unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
-bool page_less (const struct hash_elem *a_, const struct hash_elem *b_,
+unsigned hash_func_page (const struct hash_elem *p_, void *aux UNUSED);
+bool cmp_page_hash (const struct hash_elem *a_, const struct hash_elem *b_,
                 void *aux UNUSED);
-struct page * page_lookup (const void *address, struct thread *t);
-void add_page_stack (void * addr, bool writable, void * faddr);
-void add_page_segment (void * addr, bool writable, off_t of,
+bool inc_stack(void * vaddr, bool lock, void *kaddr);
+void insert_stack_page (void * vaddr, bool writable, void * faddr);
+void insert_segment_page (void * vaddr, bool writable, off_t of,
                        uint32_t read_bytes, uint32_t zero_bytes);
-void add_page_mmap (void * addr, off_t ofs, struct file *file,
+void insert_mmap_page (void * vaddr, off_t ofs, struct file *file,
                     uint32_t read_bytes, uint32_t zero_bytes);
-bool load_page (struct page *p, bool pin);
-bool grow_stack (void * addr, bool lock, void *kaddr);
-void release_mmap_page (struct page *p);
-void evict_mmap_page (struct page *p);
-void page_destructor (struct hash_elem *p_, void *aux UNUSED);
-void swap_in (struct page *p);
-void swap_out (struct page *p, void *k_addr);
-void add_exec_threads_entry (struct thread *t);
-void remove_exec_threads_entry (struct thread *t);
+bool load_page_to_frame(struct page *p, bool pin);
+void free_mmap_page_to_file (struct page *p);
+void write_mmap_page_to_file (struct page *p);
+struct page* find_page (const void *address, struct thread *t);
+void remove_page (struct hash_elem *p_, void *aux UNUSED);
+void page_to_swap(struct page *p);
+void page_from_swap(struct page *p, void *k_addr);
+struct exe_to_threads* find_exe_to_threads_entry (char *exe_key);
+void insert_exe_to_threads_entry (struct thread *t);
+void delete_exe_to_threads_entry (struct thread *t);
 #endif /* vm/page.h */
+
+
+
+

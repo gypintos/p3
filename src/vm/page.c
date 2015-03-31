@@ -1,445 +1,342 @@
-#include "vm/page.h"
 #include <stdio.h>
 #include <string.h>
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
-#include "userprog/process.h"
 #include "filesys/inode.h"
+#include "userprog/process.h"
 #include "userprog/syscall.h"
 #include "vm/frame.h"
 #include "vm/swap.h"
-
-static bool
-load_page_from_file (uint8_t *f, struct file *file, off_t ofs,
-                     uint32_t page_read_bytes, uint32_t page_zero_bytes);
-static bool try_loading_shared (struct page *p, bool lock);
+#include "vm/page.h"
+ 
+bool get_page_from_file (uint8_t *kaddr, struct file *file, 
+            off_t off, uint32_t pr_bytes, uint32_t pz_bytes);
+bool install_shared_page (struct page *p, bool lock);
 unsigned hash_fun_exec_name(const struct hash_elem *elem, void *aux UNUSED);
 bool cmp_exec_name(const struct hash_elem *a, const struct hash_elem *b,
-                  void *aux UNUSED);
-/* Returns a hash value for page p. */
-unsigned
-page_hash (const struct hash_elem *p_, void *aux UNUSED)
-{
-  const struct page *p = hash_entry (p_, struct page, hash_elem);
-  //return hash_bytes (&p->addr, sizeof p->addr);
-  return (unsigned) p->addr;
-}
+                   void *aux UNUSED);
 
-/* Returns true if page a precedes page b. */
-bool
-page_less (const struct hash_elem *a_, const struct hash_elem *b_,
-           void *aux UNUSED)
+struct page* find_page (const void *addr, struct thread *t)
 {
-  const struct page *a = hash_entry (a_, struct page, hash_elem);
-  const struct page *b = hash_entry (b_, struct page, hash_elem);
-
-  return a->addr < b->addr;
-}
-
-/* Returns the page containing the given virtual address,
-   or a null pointer if no such page exists. */
-struct page *
-page_lookup (const void *address, struct thread *t)
-{
+  struct hash_elem *elem;
   struct page p;
-  struct hash_elem *e;
-
-  // Get page's address
-  p.addr = pg_round_down (address);
-  e = hash_find (&t->page_table, &p.hash_elem);
-  return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
+  p.vaddr = pg_round_down (addr);
+  elem = hash_find (&t->page_table, &p.elem);
+  if (elem != NULL){
+    return hash_entry(elem, struct page, elem);
+  } else {
+    return NULL;
+  }
 }
 
-/* Add a page to the supplemental page table */
-void
-add_page_stack (void * addr, bool writable, void * kaddr)
+void insert_stack_page (void * vaddr, bool writable, void * kaddr)
 {
-  struct page * p = (struct page *) malloc (sizeof(struct page));
-  p->addr = addr;
+  struct page *p = (struct page*) malloc (sizeof(struct page));
   p->writable = writable;
+  p->isLoaded = true;
+  p->isSwapped = false;
   p->type = STACK;
+  p->vaddr = vaddr;
   p->kaddr = kaddr;
   p->fd = -1;
-  p->loaded = true;
-  p->swapped = false;
-  hash_insert(&thread_current()->page_table, &p->hash_elem);
+  hash_insert(&thread_current()->page_table, &p->elem);
 }
 
-void
-add_page_segment (void * addr, bool writable, off_t ofs,
-                  uint32_t read_bytes, uint32_t zero_bytes)
+void insert_segment_page (void * vaddr, bool writable, off_t ofs,
+                          uint32_t read_bytes, uint32_t zero_bytes)
 {
-  struct page * p = (struct page *) malloc (sizeof(struct page));
-  p->addr = addr;
+  struct page *p = (struct page*) malloc (sizeof(struct page));
   p->writable = writable;
+  p->isLoaded = false;
+  p->isSwapped = false;
+  p->vaddr = vaddr;
   p->type = SEGMENT;
   p->offset = ofs;
   p->read_bytes = read_bytes;
   p->zero_bytes = zero_bytes;
-  p->loaded = false;
-  p->swapped = false;
-  hash_insert(&thread_current()->page_table, &p->hash_elem);
+  hash_insert(&thread_current()->page_table,&p->elem);
 }
 
 void
-add_page_mmap (void * addr, off_t ofs, struct file *file,
-               uint32_t read_bytes, uint32_t zero_bytes) {
-    struct page * p = (struct page *) malloc (sizeof(struct page));
-    p->addr = addr;
-    p->writable = true;
-    p->type = MMAP;
-    p->offset = ofs;
-    p->file = file;
-    p->read_bytes = read_bytes;
-    p->zero_bytes = zero_bytes;
-    p->loaded = false;
-    hash_insert(&thread_current()->page_table, &p->hash_elem);
+insert_mmap_page (void * vaddr, off_t ofs, struct file *file,
+                  uint32_t read_bytes, uint32_t zero_bytes) {
+  struct page *p = (struct page*) malloc (sizeof(struct page));
+  p->writable = true;
+  p->isLoaded = false;
+  p->vaddr = vaddr;
+  p->type = MMAP;
+  p->offset = ofs;
+  p->file = file;
+  p->zero_bytes = zero_bytes;
+  p->read_bytes =read_bytes;
+  hash_insert(&thread_current()->page_table, &p->elem);
 }
 
-/* Obtain a frame to store the page, Fetch the data into the frame
-   Point the page table entry for the virtual address to the
-   physical page */
-bool
-load_page (struct page *p, bool lock)
+bool load_page_to_frame(struct page *p, bool lock)
 {
-  void *kaddr = NULL;
-
-  if (!p->writable && try_loading_shared (p, lock)) {
-  return true;
+  if (!p->writable){
+    if (install_shared_page(p,lock))
+      return true;
   }
 
-  enum palloc_flags flags = PAL_ZERO;
-  kaddr = allocate_frame (flags, lock);
-
-  if (!kaddr)
+  void *kaddr = allocate_frame(PAL_ZERO, lock);
+  if (kaddr == NULL) 
     return false;
 
-  switch (p->type) {
-    case SEGMENT: {
-
-      if (p->swapped) {
-        swap_out(p, kaddr);
-      }
-      else {
-        if(!load_page_from_file (kaddr, thread_current()->exe,
-            p->offset, p->read_bytes, p->zero_bytes))
-        return false;
+  switch (p->type){
+    case STACK:
+    {
+      return inc_stack(p->vaddr, false, kaddr);
+    }
+    case SEGMENT:
+    {
+      if (p->isSwapped){
+        page_from_swap(p, kaddr);
+      } else {
+        bool load_from_file_result = get_page_from_file(kaddr, 
+        thread_current()->exe, p->offset, p->read_bytes, p->zero_bytes);
+        if (load_from_file_result == false) return false;
       }
       break;
     }
-    case MMAP: {
-      if(!load_page_from_file (kaddr, p->file, p->offset,
-                    p->read_bytes, p->zero_bytes)){
+    case MMAP:
+    {
+      if (get_page_from_file(kaddr, p->file, p->offset, 
+          p->read_bytes, p->zero_bytes) == false){
         return false;
       }
-      break;
+      break; 
     }
-    case STACK: {
-      return grow_stack(p->addr, false, kaddr);
-    }
-
-    default: NOT_REACHED ();
   }
-
-  if (!install_page (p->addr, kaddr, p->writable)){
-    free_uninstalled_frame (kaddr);
+  if (install_page(p->vaddr, kaddr, p->writable) == false){
+    free_uninstalled_frame(kaddr);
     return false;
+  } else {
+    p->isLoaded = true;
+    p->kaddr = kaddr;
+    return true;
   }
-  p->kaddr = kaddr;
-  p->loaded = true;
-  return true;
 }
 
-bool
-grow_stack (void * addr, bool lock, void *kaddr)
+bool inc_stack(void * vaddr, bool lock, void *kaddr)
 {
-  void *frame;
-  if (kaddr == NULL) {
-    enum palloc_flags flags = PAL_ZERO;
-    frame = allocate_frame (flags, lock);
-    if (!frame)
-      return false;
-  }
-  else {
-    frame = kaddr;
-  }
-
-  void *paddr = pg_round_down (addr);
-  struct page *p = page_lookup (paddr, thread_current ());
-
-  if (p != NULL && p->swapped) {
-    swap_out(p, frame);
-  }
-  else {
-    add_page_stack (paddr, true, frame);
-    p = page_lookup (paddr, thread_current ());
+  
+  if (!kaddr){
+    kaddr = allocate_frame(PAL_ZERO, lock);
+    if (kaddr == NULL) return false;
+  } 
+  void* paddr = pg_round_down(vaddr);
+  struct page* p  = find_page(paddr, thread_current());
+  if (!p || !p->isSwapped){
+    insert_stack_page(paddr, true, kaddr);
+    p = find_page(paddr, thread_current() );
+  } else {
+    page_from_swap(p, kaddr);
   }
 
-  if (!install_page (p->addr, frame, p->writable)){
-    free_uninstalled_frame (frame);
-    hash_delete (&thread_current()->page_table, &p->hash_elem);
-    free (p);
+  if(install_page(p->vaddr, kaddr, p->writable)){
+    p->isLoaded = true;
+    return true;
+  } else {
+    free_uninstalled_frame(kaddr);
+    hash_delete(&thread_current()->page_table, &p->elem);
+    free(p);
     return false;
   }
-  p->loaded = true;
-  return true;
 }
 
-/* Reads page_read_bytes from the given file, starting at the given offset
-   ofs to the given frame f, and zeroes the rest of the frame with number
-   of page_zero_bytes. */
-static bool
-load_page_from_file (uint8_t *kaddr, struct file *file, off_t ofs,
-                     uint32_t page_read_bytes, uint32_t page_zero_bytes)
+bool get_page_from_file (uint8_t *kaddr, struct file *file, 
+        off_t off, uint32_t pr_bytes, uint32_t pz_bytes)
 {
-  ASSERT ((page_read_bytes + page_zero_bytes) % PGSIZE == 0);
-
+  ASSERT((pz_bytes + pr_bytes) % PGSIZE == 0);
   lock_acquire(&filesys_lock);
-  file_seek (file, ofs);
-  int f_read_bytes = file_read (file, kaddr, page_read_bytes);
+  file_seek(file, off);
+  int fr_bytes = file_read(file, kaddr, pr_bytes);
   lock_release(&filesys_lock);
 
-  if (f_read_bytes != (int) page_read_bytes)
-  {
+  if (fr_bytes == pr_bytes){
+    memset(kaddr + pr_bytes, 0, pz_bytes);
+    return true;
+  } else {
     free_uninstalled_frame(kaddr);
     return false;
   }
-  memset (kaddr + page_read_bytes, 0, page_zero_bytes);
-  return true;
+
 }
 
-/* if page is written, write back to file.
- * free frame, set loaded to false */
-void
-release_mmap_page (struct page *p) {
-  if (!p->loaded)
-    return;
-  void *kaddr = p->kaddr;
-  struct frame *f = frame_lookup (kaddr);
-  ASSERT (f != NULL);
-  bool dirty = is_frame_dirty (f);
+void free_mmap_page_to_file (struct page *p) {
+  if (p->isLoaded){
+    struct frame *fm = frame_lookup(p->kaddr);
+    ASSERT(fm);
+    if (is_frame_dirty(fm)){
+      lock_acquire(&frames_lock);
+      fm->pinned = true;
+      lock_release(&frames_lock);
 
-  if (!dirty) {
-  lock_acquire(&frames_lock);
-    free_frame (p, true);
-  lock_release(&frames_lock);
-    return;
+      lock_acquire(&filesys_lock);
+      uint32_t fw_bytes = file_write_at(p->file, p->kaddr, p->read_bytes, p->offset);
+      ASSERT(fw_bytes == p->read_bytes);
+      lock_release(&filesys_lock);
+
+      lock_acquire(&frames_lock);
+      fm->pinned = false;
+      free_frame(p, true);
+      lock_release(&frames_lock);
+    } else {
+      lock_acquire(&frames_lock);
+      free_frame(p,true);
+      lock_release(&frames_lock);
+    }
   }
-
-  /* Pin the frame */
-  lock_acquire(&frames_lock);
-  f->pinned = true;
-  lock_release(&frames_lock);
-
-  lock_acquire (&filesys_lock);
-  uint32_t f_write_bytes = file_write_at (p->file, kaddr, p->read_bytes, p->offset);
-  ASSERT (f_write_bytes == p->read_bytes);
-  lock_release (&filesys_lock);
-
-  /* Writing done, unpin the frame */
-  lock_acquire(&frames_lock);
-  f->pinned = false;
-  free_frame (p, true);
-  lock_release(&frames_lock);
 }
 
-/* If MMAP page is dirty, write back to file, return - otherwise. */
-void
-evict_mmap_page (struct page *p) {
-
-  void *kaddr = p->kaddr;
-
-  struct frame *f = frame_lookup (kaddr);
-  ASSERT (f != NULL);
-  bool dirty = is_frame_dirty (f);
-  if (!dirty)
-    return;
-
-  lock_acquire (&filesys_lock);
-  uint32_t f_write_bytes = file_write_at (p->file, kaddr, p->read_bytes, p->offset);
-  ASSERT (f_write_bytes == p->read_bytes);
-  lock_release (&filesys_lock);
+void write_mmap_page_to_file (struct page *p) {
+  struct frame* fm = frame_lookup(p->kaddr);
+  ASSERT(fm);
+  if (is_frame_dirty(fm)){
+    lock_acquire(&filesys_lock);
+    uint32_t fw_bytes = file_write_at(p->file, p->kaddr, p->read_bytes, p->offset);
+    lock_release(&filesys_lock);
+  } 
 }
 
 
-/* Frees memory allocated for a page in a supplementary table.
-   If page is of SWAP type, also updates swap bitmap. */
-void
-page_destructor (struct hash_elem *p_, void *aux UNUSED)
+void remove_page (struct hash_elem *h_elem, void *aux UNUSED)
 {
   lock_acquire(&frames_lock);
-  struct page *p = hash_entry (p_, struct page, hash_elem);
-  switch (p->type){
-      case MMAP: {
-        /* Mappings are freed on exit */
-        free(p);
-        break;
-      }
-      case SEGMENT:{
-        if (!p->swapped) {
-            free_frame (p, false);
-            free (p);
-        }
-        else {
-            release_sector (p->sector);
-            free (p);
-        }
-        break;
+  struct page* p = hash_entry(h_elem, struct page, elem);
+  if (p->type == SEGMENT || p->type == STACK){
+    if (p->isSwapped){
+      release_sector(p->sec_addr);
+    } else {
+      free_frame(p, false);
     }
-      case STACK: {
-        if (!p->swapped) {
-            free_frame (p, false);
-            free (p);
-        }
-        else {
-             release_sector (p->sector);
-            free (p);
-        }
-
-        break;
-    }
-      default: NOT_REACHED ();
-    }
+  } 
+  free(p); 
   lock_release(&frames_lock);
+
 }
 
-/* Swap a page from frame to swap slots */
-void
-swap_in (struct page *p)
-{
-    p->sector = swap_set(p->kaddr);
-    p->swapped = true;
-    p->loaded = false;
+void page_to_swap(struct page *p){
+  p->sec_addr = swap_set(p->kaddr);
+  p->isLoaded = false;
+  p->isSwapped = true;
 }
 
-/* Load frame from swap slots */
-void
-swap_out(struct page *p, void *k_addr)
+void page_from_swap(struct page *p, void *k_addr){
+  swap_get(p->sec_addr, k_addr);
+  p->kaddr = k_addr;
+  p->isSwapped = false;
+}
+
+unsigned
+hash_func_page (const struct hash_elem *e, void *aux UNUSED)
 {
-    swap_get(p->sector, k_addr);
-    p->kaddr = k_addr;
-    p->swapped = false;
+  const struct page *p = hash_entry (e, struct page, elem);
+  return (unsigned)p->vaddr;
+}
+
+bool
+cmp_page_hash (const struct hash_elem *a_, const struct hash_elem *b_,
+               void *aux UNUSED)
+{
+  const struct page *a = hash_entry(a_, struct page, elem);
+  const struct page *b = hash_entry(b_, struct page, elem);
+  return a->vaddr < b->vaddr;
 }
 
 unsigned hash_fun_exec_name(const struct hash_elem *elem, void *aux UNUSED){
-  struct exec_threads *e = hash_entry(elem, struct exec_threads, hash_elem);
-  return hash_string(e->exec_name); 
+  struct exe_to_threads *e = hash_entry(elem, struct exe_to_threads, hash_elem);
+  return hash_string(e->exe_key); 
 }
 
 bool cmp_exec_name(const struct hash_elem *a, const struct hash_elem *b,
                   void *aux UNUSED){
-  struct exec_threads *l = hash_entry(a, struct exec_threads, hash_elem);
-  struct exec_threads *r = hash_entry(b, struct exec_threads, hash_elem);
-  return hash_string(l->exec_name) < hash_string(r->exec_name);
+  struct exe_to_threads *l = hash_entry(a, struct exe_to_threads, hash_elem);
+  struct exe_to_threads *r = hash_entry(b, struct exe_to_threads, hash_elem);
+  return hash_string(l->exe_key) < hash_string(r->exe_key);
 
 }
 
-/* Returns the exec_threads entry containing the given executable file,
-   or a null pointer if no such executable file exists. */
-struct
-exec_threads * exec_threads_lookup (char *exec_name)
+struct exe_to_threads* find_exe_to_threads_entry (char *exe_key)
 {
-  struct exec_threads et;
-  struct hash_elem *e;
-
-  strlcpy (et.exec_name, exec_name, sizeof (et.exec_name));
-  e = hash_find (&ht_exec_to_threads, &et.hash_elem);
-  return e != NULL ? hash_entry (e, struct exec_threads, hash_elem) : NULL;
-}
-
-/* If exec is in ht_exec_to_threads, append the thread to the list,
- * Otherwise, insert a new entry for exec.
- */
-void
-add_exec_threads_entry(struct thread *t)
-{
-  struct exec_threads *et = exec_threads_lookup(t->name);
-
-  if (et) {
-    list_push_back (&et->threads, &t->exec_elem);
+  struct exe_to_threads* etp = malloc(sizeof(struct exe_to_threads));
+  strlcpy(etp->exe_key, exe_key, sizeof(etp->exe_key));
+  struct hash_elem* elem = hash_find(&ht_exec_to_threads, &etp->hash_elem);
+  if (elem != NULL){
+    return hash_entry(elem, struct exe_to_threads, hash_elem);
   } else {
-    struct exec_threads *et = malloc(sizeof (struct exec_threads));
-    strlcpy (et->exec_name, t->name, sizeof (et->exec_name));
-    list_init(&et->threads);
-    list_push_back (&et->threads, &t->exec_elem);
-    hash_insert (&ht_exec_to_threads, &et->hash_elem);
+    return NULL;
   }
+
 }
 
-/* Remove entry from ht_exec_to_threads when evict or exit
- */
 void
-remove_exec_threads_entry (struct thread *t)
+insert_exe_to_threads_entry(struct thread *t)
 {
-  struct list_elem *e;
-  struct exec_threads *et = exec_threads_lookup (t->name);
-
-  if (et) {
-    if (list_size (&et->threads) == 1) {
-      /* Threads list has only one element, delete the entry from
-       * ht_exec_to_threads
-       */
-      hash_delete(&ht_exec_to_threads, &et->hash_elem);
-    free (et);
-  }
-    else {
-      /* Remove the thread from threads list */
-      for (e = list_begin (&et->threads);
-           e != list_end (&et->threads);
-           e = list_next (e))
-        {
-          struct thread *tmp = list_entry (e, struct thread, exec_elem);
-          if(tmp == t) {
-            list_remove(&tmp->exec_elem);
-            break;
-          }
-        }
-    }
+  struct exe_to_threads* etp = find_exe_to_threads_entry(t->name);
+  if(!etp){
+    struct exe_to_threads* new_etp = malloc(sizeof(struct exe_to_threads));
+    list_init(&new_etp->threads);
+    strlcpy(new_etp->exe_key, t->name, sizeof(new_etp->exe_key));
+    list_push_back(&new_etp->threads, &t->exec_elem);
+    hash_insert(&ht_exec_to_threads, &new_etp->hash_elem);
+  } else {
+    list_push_back(&etp->threads, &t->exec_elem);
   }
 }
 
-/* Tries to locate a shared frame that contains the data for the
-   read-only segment page. Installs page, updates supplementary page table
-   and frame and returns true, if such frame is found, returns false - otherwise. */
-static bool try_loading_shared (struct page *p, bool lock) {
+void delete_exe_to_threads_entry (struct thread *t)
+{  
+  struct exe_to_threads* etp = find_exe_to_threads_entry(t->name);
 
-  lock_acquire(&exec_list_lock);
-
-  struct exec_threads *et = exec_threads_lookup (thread_current()->name);
-  if (et) {
-    struct list_elem *e = list_begin(&et->threads);
-    while (e != list_end (&et->threads)) {
-      struct thread *t = list_entry (e, struct thread, exec_elem);
-
-      /* Check page of related thread t */
-      if (t == thread_current()) {
-        e = list_next(e);
-        continue;
+  if (etp != NULL){
+    struct list_elem* e = list_begin(&etp->threads);
+    while(e != list_end(&etp->threads)){
+      struct thread* t_ = list_entry(e, struct thread, exec_elem);
+      if (t == t_){
+        list_remove(&t_->exec_elem);
+        break;
       }
-
-      lock_acquire(&frames_lock);
-      struct page *same_p = page_lookup(p->addr, t);
-      if (same_p->loaded) {
-        struct frame *f = frame_lookup (same_p->kaddr);
-        f->pinned = true;
-        p->kaddr = f->k_addr;
-        lock_release(&frames_lock);
-        lock_release(&exec_list_lock);
-        if (!install_page (p->addr, f->k_addr, p->writable)){
-           free_uninstalled_frame (f->k_addr);
-           return false;
-        }
-        p->loaded = true;
-        f->locked = lock;
-        return true;
-      }
-      lock_release(&frames_lock);
       e = list_next(e);
     }
+    if (list_size(&etp->threads) == 0){
+      hash_delete(&ht_exec_to_threads, &etp->hash_elem);
+      free(etp);
+    }
   }
+}
 
-  lock_release(&exec_list_lock);
+bool install_shared_page (struct page *p, bool lock) {
+  lock_acquire(&ht_exec_to_threads_lock);
+  struct exe_to_threads *etp = find_exe_to_threads_entry(thread_current()->name);
+  if (etp != NULL){
+    struct list_elem *e;
+    for (e = list_begin(&etp->threads); e != list_end(&etp->threads); e = list_next(e)){
+      struct thread* t = list_entry(e, struct thread, exec_elem);
+      if (thread_current() == t) continue;
+      lock_acquire(&frames_lock);
+      struct page* p_other = find_page(p->vaddr, t);
+      if(p_other->isLoaded){
+        struct frame* fm = frame_lookup(p_other->kaddr);
+        p->kaddr = fm->k_addr;
+        fm->pinned = true;
+        lock_release(&frames_lock);
+        lock_release(&ht_exec_to_threads_lock);
+        if (!install_page(p->vaddr, fm->k_addr, p->writable)){
+          free_uninstalled_frame(fm->k_addr);
+          return false;
+        } else {
+          fm->locked = lock;
+          p->isLoaded = true;
+          return true;
+        }
+      }
+      lock_release(&frames_lock);
+    }
+  }
+  lock_release(&ht_exec_to_threads_lock);
   return false;
 }
 

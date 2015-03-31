@@ -222,7 +222,7 @@ thread_create (const char *name, int priority,
   }
 
   /* Init supplemental page table */
-  hash_init (&t->page_table, page_hash, page_less, NULL);
+  hash_init (&t->page_table, hash_func_page, cmp_page_hash, NULL);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);

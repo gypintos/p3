@@ -22,19 +22,34 @@ struct t_to_uaddr {
   struct hash_elem elem;      /* Hash element of thread_to_uaddr */
   };
 
-  void *clock_point;          /* Frame the clock algorithm currently points to */
-  void *clock_point_init;        /* Initial position of the clock hand */
-  void *clock_point_max;        /* Maximum position of the clock hand (maximal address of the frames in the user pool */
+void *clock_point;          /* Frame the clock algorithm currently points to */
+void *clock_point_init;        /* Initial position of the clock hand */
+void *clock_point_max;        /* Maximum position of the clock hand (maximal address of the frames in the user pool */
 
-  struct hash frames;        /* Frames table */
-  struct lock frames_lock;       /* Frame lock */
-  struct condition frames_locked;  /* Condition to wait on for any frame to unpin\unlock */
- 
-  void *allocate_frame (enum palloc_flags flags, bool lock);
-  void free_frame (struct page *p, bool freepdir);
-  void free_uninstalled_frame (void *addr);
-  void frame_table_init (void);
-  void assign_page_to_frame (void *kaddr, void *uaddr);
-  struct frame *frame_lookup (void *address);
-  bool is_frame_accessed (struct frame *f);
-  bool is_frame_dirty (struct frame *f);
+struct hash frames;        /* Frames table */
+struct lock frames_lock;       /* Frame lock */
+struct condition frames_locked;  /* Condition to wait on for any frame to unpin\unlock */
+  
+void *allocate_frame (enum palloc_flags flags, bool lock);
+void free_frame (struct page *p, bool freepdir);
+void free_uninstalled_frame (void *addr);
+void fmt_init (void);
+void assign_page_to_frame (void *kaddr, void *uaddr);
+struct frame *frame_lookup (void *address);
+bool is_frame_accessed (struct frame *f);
+bool is_frame_dirty (struct frame *f);
+
+unsigned frame_hash_func (const struct hash_elem *e, void *aux UNUSED);
+bool frame_hash_less_func (const struct hash_elem *a,
+                           const struct hash_elem *b,
+                           void *aux UNUSED);
+unsigned t_to_uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED);
+void clear_page_accessed (struct hash_elem *e, void *aux UNUSED);
+bool t_to_uaddr_hash_less_func (const struct hash_elem *a,
+                                const struct hash_elem *b,
+                                void *aux UNUSED);
+void t_to_uaddr_destructor_func (struct hash_elem *e, void *aux UNUSED);
+struct t_to_uaddr *t_to_uaddr_lookup (struct frame *f, struct thread *t);
+typedef bool pdir_bool_func (uint32_t *pd, const void *upage);
+bool ttu_ormap (struct frame *f, pdir_bool_func pdir_func);
+struct frame *select_fm(void);

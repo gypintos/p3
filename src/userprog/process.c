@@ -371,9 +371,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
-  lock_acquire(&exec_list_lock);
-  add_exec_threads_entry(thread_current());
-  lock_release(&exec_list_lock);
+  lock_acquire(&ht_exec_to_threads_lock);
+  insert_exe_to_threads_entry(thread_current());
+  lock_release(&ht_exec_to_threads_lock);
   success = true;
 
  done:
@@ -462,7 +462,7 @@ load_segment (off_t ofs, uint8_t *upage, uint32_t read_bytes,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      add_page_segment(upage, writable, ofs, page_read_bytes,
+      insert_segment_page(upage, writable, ofs, page_read_bytes,
                        page_zero_bytes);
       ofs += PGSIZE;
       /* Advance. */
@@ -479,7 +479,7 @@ static bool
 setup_stack (void **esp, char *file_name, char *save_ptr)
 {
   bool success = false;
-  success = grow_stack (((uint8_t *) PHYS_BASE) - PGSIZE, false, NULL);
+  success = inc_stack(((uint8_t *) PHYS_BASE) - PGSIZE, false, NULL);
   if (success) {
 	  *esp = PHYS_BASE;
   } else {

@@ -164,7 +164,7 @@ paging_init (void)
   size_t page;
   extern char _start, _end_kernel_text;
 
-  frame_table_init();
+  fmt_init();
   
   hash_init (&ht_exec_to_threads, hash_fun_exec_name, 
               cmp_exec_name, NULL);

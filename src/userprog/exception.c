@@ -168,12 +168,12 @@ page_fault (struct intr_frame *f)
       is_user_vaddr (fault_addr) && 
       (fault_addr >= USER_VADDR_BASE) ) 
   {
-    struct page *p = page_lookup(fault_addr, thread_current ());
+    struct page *p = find_page(fault_addr, thread_current ());
     if (p != NULL) {
-      result = load_page(p, false);
+      result = load_page_to_frame(p, false);
     }	else if (fault_addr >= f->esp - DEFAUTL_STACK_GROUTH) {
   	  if (PHYS_BASE - pg_round_down (fault_addr) <= STACK_MAX_SIZE)	 {
-  		  result = grow_stack(fault_addr, false, NULL);
+  		  result = inc_stack(fault_addr, false, NULL);
   	  }
     }
   }

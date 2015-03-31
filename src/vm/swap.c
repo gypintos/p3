@@ -1,54 +1,51 @@
 #include "vm/swap.h"
-#include <bitmap.h>
+
 #include <debug.h>
 #include "threads/synch.h"
+#include "threads/vaddr.h"
 
+int SEC_NUM = PGSIZE / BLOCK_SECTOR_SIZE;
 
-void
-swap_init(void)
+void swap_init(void)
 {
-  swap = block_get_role(BLOCK_SWAP);
-  int size = block_size(swap);
-  sw_table = bitmap_create(size/ SEC_NUM);
+  sw = block_get_role(BLOCK_SWAP);
+  sw_table = bitmap_create(block_size(sw)/SEC_NUM);
   lock_init(&sw_lock);
 }
 
-block_sector_t
-swap_set(void * addr)
+block_sector_t swap_set(void * addr)
 {
   lock_acquire(&sw_lock);
-
-  block_sector_t index = bitmap_scan (sw_table, 0, 1, false);
-  if(index == BITMAP_ERROR)
-    PANIC("it is full now!");
-
-  int i = 0;
-  while(i < SEC_NUM){
-        block_write (swap, index * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
-        i++;
+  block_sector_t sec = bitmap_scan (sw_table, 0, 1, false);
+  if(sec == BITMAP_ERROR){
+    PANIC("Swap table full error.");
   }
-  bitmap_set (sw_table, index, true);
+  int i = 0;
+  while (i < SEC_NUM){
+    block_write(sw, i + SEC_NUM * sec, addr + i * BLOCK_SECTOR_SIZE);
+    i++;
+  }
+  bitmap_set (sw_table, sec, true);
   lock_release(&sw_lock);
-  return index;
+  return sec;
 }
 
-void
-swap_get(block_sector_t index, void * addr)
+void swap_get(block_sector_t sec, void * addr)
 {
-  int i = 0;
-  while(i < SEC_NUM){
-    block_read (swap, index * SEC_NUM + i, addr + BLOCK_SECTOR_SIZE * i);
+  int i = 0; 
+  while (i < SEC_NUM){
+    block_read(sw, i + SEC_NUM * sec, addr + i* BLOCK_SECTOR_SIZE);
     i++;
   }
   lock_acquire(&sw_lock);
-  bitmap_set (sw_table, index, false);
+  bitmap_set (sw_table, sec, false);
   lock_release(&sw_lock);
 }
 
 void
-release_sector (block_sector_t index)
+release_sector (block_sector_t sec)
 {
   lock_acquire(&sw_lock);
-  bitmap_set (sw_table, index, false);
+  bitmap_set (sw_table, sec, false);
   lock_release(&sw_lock);
 }

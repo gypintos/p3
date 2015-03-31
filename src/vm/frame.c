@@ -1,82 +1,55 @@
+#include "userprog/pagedir.h"
 #include "threads/palloc.h"
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
-#include "userprog/pagedir.h"
 #include "frame.h"
 
-struct hash_iterator frames_iter;   /* Frame table iterator */
 
-unsigned frame_hash_func (const struct hash_elem *e, void *aux UNUSED);
-bool frame_hash_less_func (const struct hash_elem *a,
-                           const struct hash_elem *b,
-                           void *aux UNUSED);
-unsigned t_to_uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED);
-void clear_page_accessed (struct hash_elem *e, void *aux UNUSED);
-bool t_to_uaddr_hash_less_func (const struct hash_elem *a,
-                                const struct hash_elem *b,
-                                void *aux UNUSED);
-void t_to_uaddr_destructor_func (struct hash_elem *e, void *aux UNUSED);
-struct t_to_uaddr *t_to_uaddr_lookup (struct frame *f, struct thread *t);
-typedef bool pdir_bool_func (uint32_t *pd, const void *upage);
-bool ttu_ormap (struct frame *f, pdir_bool_func pdir_func);
-struct frame *choose_frame(void);
+struct hash_iterator frames_iter;  
 
-/* Initializes frames for the whole user pool */
-void frame_table_init (void) {
-    lock_init(&exec_list_lock);
-    lock_init(&frames_lock);
-    cond_init(&frames_locked);
-    hash_init(&frames, frame_hash_func, frame_hash_less_func, NULL);
+void fmt_init (void) {
+  hash_init(&frames, frame_hash_func, frame_hash_less_func, NULL);
+  lock_init(&frames_lock);
+  cond_init(&frames_locked);
+  lock_init(&ht_exec_to_threads_lock);
 }
 
-/* Chooses frame to free according to clock algorithm, if all frames
-   were recently used, chooses any frame that is not locked, pinned
-   or just allocated to another thread. */
-struct frame *choose_frame (void) {
+struct frame *select_fm (void) {
+  void *end = clock_point_max;
+  if (clock_point != clock_point_init)
+    end = clock_point - PGSIZE;
 
-    void *start = clock_point == clock_point_init ? clock_point_max
-                                               : clock_point - PGSIZE;
-    struct frame *f;
-    while (start != clock_point) {
-        if (clock_point >= clock_point_max) {
-            clock_point = clock_point_init;
-        }
-        f = frame_lookup(clock_point);
-        if (f == NULL) {
-            clock_point = clock_point + PGSIZE;
-            continue;
-        }
-        if (!f->locked && !f->pinned) {
-            if (is_frame_accessed (f)) {
-                hash_apply(&f->thread_to_uaddr, clear_page_accessed);
-                clock_point = clock_point + PGSIZE;
-                continue;
-            }
-            else {
-                return f;
-            }
-        }
-        else {
-            if (is_frame_accessed (f)) {
-                hash_apply(&f->thread_to_uaddr, clear_page_accessed);
-            }
-            clock_point = clock_point + PGSIZE;
-            continue;
-        }
+  struct frame *fm;
+  for (;clock_point != end; clock_point += PGSIZE){
+    if (clock_point >= clock_point_max) clock_point = clock_point_init;
+    fm = frame_lookup(clock_point);
+    if (!fm){
+      continue;
+    } else if (fm->locked || fm->pinned){
+      if (is_frame_accessed(fm)){
+        hash_apply(&fm->thread_to_uaddr, clear_page_accessed);
+      }
+      continue;
+    } else {
+      if (is_frame_accessed(fm)){
+        hash_apply(&fm->thread_to_uaddr, clear_page_accessed);
+      } else {
+        return fm;
+      }
     }
-    f = NULL;
-    while (f == NULL) {
-        hash_first(&frames_iter, &frames);
-        while (hash_next (&frames_iter)) {
-              f = hash_entry (hash_cur(&frames_iter), struct frame, elem);
-              if (!f->pinned && !f->locked) {
-                return f;
-            }
-        }
-        /* All frames are locked or pinned so far, wait to unlock */
-        cond_wait(&frames_locked, &frames_lock);
-    }
+  }
 
+  fm = NULL;
+  while(!fm){
+    hash_first(&frames_iter, &frames);
+    while(hash_next(&frames_iter)){
+      fm = hash_entry(hash_cur(&frames_iter), struct frame, elem);
+      if (!fm->locked && !fm->pinned){
+        return fm;
+      }
+    }
+    cond_wait(&frames_locked, &frames_lock);  
+  }
 }
 
 /* Allocates one frame from user pool. If no free frames left - chooses
@@ -87,6 +60,11 @@ void *allocate_frame (enum palloc_flags flags, bool lock) {
 
     lock_acquire(&frames_lock);
     void *addr = palloc_get_page (flags | PAL_USER);
+
+    //
+    // lock_acquire(&frames_lock);
+    // void *kaddr = palloc_get_page(PAL_USER | flags);
+    //
 
     /*There are free frames in the user pool */
     if (addr != NULL) {
@@ -100,7 +78,7 @@ void *allocate_frame (enum palloc_flags flags, bool lock) {
     }
     else {
         /* Some of the used frames should be freed */
-        struct frame *f = choose_frame();
+        struct frame *f = select_fm();
         f->locked = lock;
         f->pinned = true;
         addr = f->k_addr;
@@ -110,32 +88,32 @@ void *allocate_frame (enum palloc_flags flags, bool lock) {
         while (hash_next (&f->ttu_i))
         {
           ttu = hash_entry (hash_cur (&f->ttu_i), struct t_to_uaddr, elem);
-          struct page *p = page_lookup(ttu->uaddr, ttu->t);
+          struct page *p = find_page(ttu->uaddr, ttu->t);
           /* Invalidate to eliminate reads\writes */
-          p->loaded = false;
-          pagedir_clear_page (ttu->t->pagedir, p->addr);
+          p->isLoaded = false;
+          pagedir_clear_page (ttu->t->pagedir, p->vaddr);
           switch (p->type) {
                case MMAP: {
-                  evict_mmap_page (p);
+                  write_mmap_page_to_file (p);
                   break;
               }
               case SEGMENT: {
                   if (p->writable) {
                       /* Segment that is once dirty, is always dirty */
-                      if (!p->segment_dirty) {
+                      if (!p->isDirty) {
                         bool dirty = is_frame_dirty(f);
                         if (dirty) {
-                          p->segment_dirty = dirty;
+                          p->isDirty = dirty;
                         }
                       }
-                      if (p->segment_dirty) {
-                          swap_in(p);
+                      if (p->isDirty) {
+                          page_to_swap(p);
                       }
                   }
                   break;
               }
               case STACK: {
-                  swap_in(p);
+                  page_to_swap(p);
                   break;
                 }
               default: NOT_REACHED ();
@@ -144,6 +122,50 @@ void *allocate_frame (enum palloc_flags flags, bool lock) {
         hash_clear(&f->thread_to_uaddr, t_to_uaddr_destructor_func);
 
     }
+
+
+    //
+    // struct frame *fm;
+    // if (kaddr == NULL){
+    //   fm = select_fm();
+    //   fm->pinned = true;
+    //   fm->locked = true;
+    //   kaddr = fm->k_addr;
+    //   struct hash *ht_thread_uaddr = &fm->thread_to_uaddr;
+    //   hash_first(&fm->ttu_i, ht_thread_uaddr);
+    //   struct t_to_uaddr *thread_uaddr;
+    //   while (hash_next(&fm->ttu_i)){
+    //     thread_uaddr = hash_entry(hash_cur(&fm->ttu_i), struct t_to_uaddr, elem);
+    //     struct page* p = find_page(thread_uaddr->uaddr, thread_uaddr->t);
+    //     p->isLoaded = false;
+    //     pagedir_clear_page(thread_uaddr->t->pagedir, p->vaddr);
+    //     if (p->type == STACK){
+    //       page_to_swap(p);
+    //     } else if (p->type == SEGMENT){
+    //       if (p->writable && (is_frame_dirty(fm) || p->isDirty)){
+    //         p->isDirty = true;
+    //         page_to_swap(p);
+    //       }
+    //     } else {
+    //       write_mmap_page_to_file(p);
+    //     }
+    //   }
+    //   hash_clear(&fm->thread_to_uaddr, t_to_uaddr_destructor_func);
+    // } else {
+    //   fm = malloc(sizeof(struct frame));
+    //   fm->locked = lock;
+    //   fm->k_addr = kaddr;
+    //   fm->pinned = true;
+    //   hash_init(&fm->thread_to_uaddr, t_to_uaddr_hash_func, t_to_uaddr_hash_less_func, NULL);
+    //   hash_insert(&frames, &fm->elem);
+    // }
+
+    // lock_release(&frames_lock);
+    // return kaddr;
+
+    //
+
+
     lock_release(&frames_lock);
     return addr;
 }
@@ -180,7 +202,7 @@ void free_uninstalled_frame (void *addr) {
 /* If no other threads are using the frame, deletes entry from frame table
    and frees frame and user pool address. */
 void free_frame (struct page *p, bool freepdir) {
-    p->loaded = false;
+    p->isLoaded = false;
     struct frame *f = frame_lookup(p->kaddr);
     if (f != NULL) {
         struct t_to_uaddr *ttu = t_to_uaddr_lookup (f, thread_current());

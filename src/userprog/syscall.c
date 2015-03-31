@@ -41,16 +41,16 @@ void validate_addr (void *addr, void *esp, bool writable) {
         exit(-1);
 
     lock_acquire(&frames_lock);
-    struct page *p = page_lookup(addr, thread_current());
+    struct page *p = find_page(addr, thread_current());
     struct frame *fm = NULL;
-    if (p != NULL && p->loaded){
+    if (p != NULL && p->isLoaded){
         fm = frame_lookup(p->kaddr);
         fm->locked = true;
     }
     lock_release(&frames_lock);
 
-    if (p != NULL && !p->loaded ) {
-        bool load_result = load_page(p, true);
+    if (p != NULL && !p->isLoaded ) {
+        bool load_result = load_page_to_frame(p, true);
         if (!load_result) exit(-1);
     }
 
@@ -61,7 +61,7 @@ void validate_addr (void *addr, void *esp, bool writable) {
         bool is_valid= false;
         if (addr >= esp - DEFAUTL_STACK_GROUTH &&
             STACK_MAX_SIZE >= PHYS_BASE - pg_round_down(addr)){
-            is_valid = grow_stack(addr, true, NULL);
+            is_valid = inc_stack(addr, true, NULL);
         }
         if (!is_valid)
             exit(-1);
@@ -230,8 +230,8 @@ void release_args (int *ptr, int count, void **argv) {
     for (i = 0; i < count; i++){
         void* tmp_ptr = (void*) ++ptr;
         lock_acquire(&frames_lock);
-        struct page *p = page_lookup(ptr, thread_current());
-        if (p && p->loaded){
+        struct page *p = find_page(ptr, thread_current());
+        if (p && p->isLoaded){
             struct frame *fm = frame_lookup(p->kaddr);
             fm->locked = false;
         }
@@ -243,19 +243,19 @@ void release_args (int *ptr, int count, void **argv) {
 
 void release_buf (const char* buf_ptr, int size) {
     lock_acquire(&frames_lock);
-    struct page  *p  = page_lookup(buf_ptr, thread_current());
+    struct page  *p  = find_page(buf_ptr, thread_current());
     struct frame *fm = frame_lookup(p->kaddr);
     fm->locked = false;
     int page_cnt = size/PGSIZE;
     int remain   = size%PGSIZE;
     int i;
     for (i= 1; i <= page_cnt; i++) {
-        p = page_lookup(buf_ptr + i * PGSIZE, thread_current());
+        p = find_page(buf_ptr + i * PGSIZE, thread_current());
         fm = frame_lookup(p->kaddr);
         fm->locked = false;
     }
     if (remain > 0) {
-        p = page_lookup(buf_ptr + size, thread_current());
+        p = find_page(buf_ptr + size, thread_current());
         fm = frame_lookup(p->kaddr);
         fm->locked = false;
     }
@@ -273,15 +273,15 @@ void exit (int status) {
     hash_destroy(&curr->mapids, remove_mapids);
     hash_destroy(&curr->fds, remove_fds);
 
-    lock_acquire(&exec_list_lock);
-    remove_exec_threads_entry(curr);
-    lock_release(&exec_list_lock);
+    lock_acquire(&ht_exec_to_threads_lock);
+    delete_exe_to_threads_entry(curr);
+    lock_release(&ht_exec_to_threads_lock);
 
     lock_acquire(&filesys_lock);
     file_close(curr->exe);
     lock_release(&filesys_lock);
 
-    hash_destroy(&curr->page_table, page_destructor);
+    hash_destroy(&curr->page_table, remove_page);
 
     sema_down(&sys_sema);
     hash_destroy(&thread_current()->children, remove_child_info);
@@ -375,34 +375,7 @@ void insert_fd(struct thread *t, struct file_desc *fd) {
     return fd_ptr->fptr;
  }
 
-/* Reads size bytes from the file open as fd into buffer.
-   Returns the number of bytes actually read. */
 int read (int fd, void *buffer, unsigned length) {
-    // if (fd == 1) {
-    //     return -1;
-    // }
-    // if (fd == 0) {
-    //     char *b = (char *) buffer;
-    //     int i = 0;
-    //     while (length > 0 || b[i-1] != '\n') {
-    //         b[i] = input_getc();
-    //         i++;
-    //         length--;
-    //     }
-    //     release_buf(buffer, length);
-    //     return i;
-    // }
-    // struct file *file_ptr = get_file_by_id(fd);
-
-    // if (file_ptr != NULL) {
-    //     lock_acquire(&filesys_lock);
-    //     length = file_read(file_ptr, buffer, length);
-    //     lock_release(&filesys_lock);
-    //     release_buf(buffer, length);
-    //     return length;
-    // }
-    // return -1;
-//
 
     if (fd == STDOUT_FILENO){
         return -1;
@@ -521,9 +494,6 @@ void remove_child_info (struct hash_elem *e, void *aux UNUSED) {
     free(ct);
 }
 
-/* Maps the file open as fd into the process's
- virtual address space. The entire file is mapped into
- consecutive virtual pages starting at addr. */
 mapid_t mmap (int fd, void *addr) {
 
     if (fd == STDIN_FILENO || fd == STDOUT_FILENO || addr == NULL 
@@ -535,41 +505,6 @@ mapid_t mmap (int fd, void *addr) {
     if (size == -1 || size == 0) {
         return MAP_FAILED;
     }
-
-
-
-
-    // /* console input and output are not mappable */
-    // if (fd == STDIN_FILENO || fd == STDOUT_FILENO) {
-    //     return MAP_FAILED;
-    // }
-
-    // int size = filesize(fd);
-    //  if the file open as fd has a length of zero bytes
-    //  * or if an error occurs in filesize 
-    // if (size == -1 || size == 0) {
-    //     return MAP_FAILED;
-    // }
-
-    // /* if addr is not page-aligned */
-    // if (pg_ofs(addr) != 0) {
-    //     return MAP_FAILED;
-    // }
-
-    // /* if addr is 0 */
-    // if (!addr) {
-    //     return MAP_FAILED;
-    // }
-
-
-
-
-    // int page_num = size / PGSIZE;
-    // int rem_bytes = size % PGSIZE;
-    // if (rem_bytes != 0) {
-    //     page_num++;
-    // }
-
 
     struct file* fptr = get_file_by_id(fd);
     if(!fptr) {
@@ -586,53 +521,20 @@ mapid_t mmap (int fd, void *addr) {
 
     struct thread *curr = thread_current();
 
-    //struct thread *t = thread_current();
-
-    /* if the range of pages mapped overlaps any existing set of
-     * mapped pages */
-
-
     void *exist_addr = addr;
     int exist_cnt = 0;
     while(exist_cnt < page_cnt) {
-        if(page_lookup(exist_addr, curr)){
+        if(find_page(exist_addr, curr)){
             return MAP_FAILED;
         }
         exist_addr += PGSIZE;
         exist_cnt++;
     }
 
-    // void * ckexist_pt = addr;
-    // int ckexist_cnt;
-    // for (ckexist_cnt = 0; ckexist_cnt < page_num;
-    //     ckexist_cnt++, ckexist_pt += PGSIZE) {
-    //     if (page_lookup(ckexist_pt, t)) {
-    //         return MAP_FAILED;
-    //     }
-    // }
-
-    // struct file *file_ptr = get_file_by_id(fd);
-    // if (file_ptr == NULL) {
-    //     return MAP_FAILED;
-    // }
-
-    /* use file_reopen function to obtain a separate and
-     * independent reference to the file */
-
     lock_acquire(&filesys_lock);
     struct file *re_fptr = file_reopen(fptr);
     lock_release(&filesys_lock);
     if(!re_fptr) return MAP_FAILED;
-
-
-    // lock_acquire(&filesys_lock);
-    // struct file *refile_ptr = file_reopen(file_ptr);
-    // lock_release(&filesys_lock);
-    // if (refile_ptr == NULL) {
-    //     return MAP_FAILED;
-    // }
-
-    /* add to supplemental page table */
 
     int offset = 0;
     void *naddr = addr;
@@ -645,30 +547,11 @@ mapid_t mmap (int fd, void *addr) {
             rbytes = size;
         }
         zbytes = PGSIZE - rbytes;
-        add_page_mmap(naddr, offset, re_fptr, rbytes, zbytes);
+        insert_mmap_page(naddr, offset, re_fptr, rbytes, zbytes);
         size -= rbytes;
         offset += rbytes;
         naddr += PGSIZE;
     }
-
-
-
-
-    // int offset = 0;
-    // void *naddr = addr;
-    // while (size > 0) {
-    //     uint32_t read_bytes = size >= PGSIZE? PGSIZE : size;
-    //     uint32_t zero_bytes = PGSIZE - read_bytes;
-
-    //     add_page_mmap(naddr, offset, refile_ptr,
-    //                     read_bytes, zero_bytes);
-
-    //     size -= read_bytes;
-    //     offset += read_bytes;
-    //     naddr += PGSIZE;
-    // }
-
-    /* create new id_addr, add to mapids */
 
     struct id_addr *new_addr;
     new_addr = (struct id_addr *)malloc(sizeof(struct id_addr));
@@ -685,21 +568,6 @@ mapid_t mmap (int fd, void *addr) {
         ;
     }
     return new_addr->mapid;
-
-
-    // struct id_addr *m;
-    // m = (struct id_addr *)malloc(sizeof(struct id_addr));
-    // m->addr = addr;
-    // m->pnum = page_num;
-    // do {
-    //     if (t->mapid_cnt == USHRT_MAX) {
-    //      t->mapid_cnt = 1;
-    //     }
-    //     m->mapid = ++t->mapid_cnt;
-    //  }
-    // while (hash_insert(&t->mapids, &m->elem) != NULL);
-
-    // return m->mapid;
 }
 
 /* Unmaps the id_addr designated by id_addr. */
@@ -715,49 +583,20 @@ void munmap (mapid_t id) {
 
     munmap_helper(e_addr, curr);
 
-
-    // struct id_addr m_;
-    // struct id_addr *m;
-    // struct hash_elem *e;
-    // struct thread *t = thread_current();
-    // m_.mapid = id;
-    // e = hash_find(&t->mapids, &m_.elem);
-    // if (e != NULL) {
-    //     m = hash_entry(e, struct id_addr, elem);
-    // } else {
-    //     return;
-    // }
-
-    // munmap_mapping(m, t);
 }
 
 void munmap_helper (struct id_addr *id, struct thread *t) {
     void *addr = id->addr;
     int i = 1;
     while( i <= id->pnum){
-        struct page *p = page_lookup(addr, t);
+        struct page *p = find_page(addr, t);
         ASSERT(p && p->type == MMAP);
-        release_mmap_page(p);
-        hash_delete(&t->page_table, &p->hash_elem);
+        free_mmap_page_to_file(p);
+        hash_delete(&t->page_table, &p->elem);
         free(p);
         addr += PGSIZE;
         i++;
         
     }
     hash_delete(&t->mapids, &id->elem);
-
-
-    // void *addr = id->addr;
-    // int i;
-    // /* write back to file */
-    // for (i = 1; i <= id->pnum; i++) {
-    //     struct page *p = page_lookup(addr, t);
-    //     ASSERT((p != NULL) && (p->type == MMAP));
-    //     release_mmap_page(p);
-    //     hash_delete(&t->page_table, &p->hash_elem);
-    //     free(p);
-    //     addr += PGSIZE;
-    // }
-
-    // hash_delete(&t->mapids, &id->elem);
 }
