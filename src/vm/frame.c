@@ -406,14 +406,23 @@ struct t_to_uaddr *t_to_uaddr_lookup (struct frame *f, struct thread *t)
    at least one returns true, false - otherwise */
 bool ttu_ormap (struct frame *f, pdir_bool_func pdir_func) {
 
-  hash_first(&f->ttu_i_b, &f->thread_to_uaddr);
+  // hash_first(&f->ttu_i_b, &f->thread_to_uaddr);
 
-  while (hash_next (&f->ttu_i_b))
-  {
-    struct t_to_uaddr *ttu = hash_entry (hash_cur (&f->ttu_i_b),
-                                         struct t_to_uaddr, elem);
-    if (pdir_func(ttu->t->pagedir, ttu->uaddr))
-        return true;
+  // while (hash_next (&f->ttu_i_b))
+  // {
+  //   struct t_to_uaddr *ttu = hash_entry (hash_cur (&f->ttu_i_b),
+  //                                        struct t_to_uaddr, elem);
+  //   if (pdir_func(ttu->t->pagedir, ttu->uaddr))
+  //       return true;
+  // }
+  // return false;
+
+
+  hash_first(&f->ttu_i_b, &f->thread_to_uaddr);
+  while(hash_next(&f->ttu_i_b)){
+    struct t_to_uaddr *thread_to_uaddr = hash_entry(hash_cur(&f->ttu_i_b), struct t_to_uaddr, elem);
+    if(pdir_func(thread_to_uaddr->t->pagedir, thread_to_uaddr->uaddr)) return true;
   }
   return false;
+
 }
