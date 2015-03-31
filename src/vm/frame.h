@@ -1,55 +1,52 @@
+#include "hash.h"
 #include "threads/thread.h"
 #include "threads/palloc.h"
 #include "page.h"
-#include "hash.h"
 
-/* Frame table entry */
-struct frame
-  {
-  void *k_addr;         /* Kernel virtual address mapped to frame physical address */
-  bool pinned;          /* Is data being read into the frame */
-  bool locked;          /* Frame filled for syscall*/
-  struct hash thread_to_uaddr;  /* Threads using the frame with user virtual addresses mapped to it */
-  struct hash_iterator ttu_i;   /* Iterator over thread_to_uaddr table */
-  struct hash_iterator ttu_i_b; /* Iterator over thread_to_uaddr table - bits check*/
-  struct hash_elem elem;      /* Frames hash table element */
-  };
 
-/* Thread to user virtual address mapping */
-struct t_to_uaddr {
-  struct thread *t;       /* Pointer to a thread using the frame */
-  void *uaddr;          /* User virtual address mapped to the frame in thread t */
-  struct hash_elem elem;      /* Hash element of thread_to_uaddr */
-  };
+struct frame {
+  void *k_addr;         
+  bool pinned;          
+  bool locked;          
+  struct hash thread_to_uaddr; 
+  struct hash_iterator ttu_i;   
+  struct hash_iterator ttu_i_b; 
+  struct hash_elem elem;
+};
 
-void *clock_point;          /* Frame the clock algorithm currently points to */
-void *clock_point_init;        /* Initial position of the clock hand */
-void *clock_point_max;        /* Maximum position of the clock hand (maximal address of the frames in the user pool */
+struct thread_uaddr {
+  struct hash_elem elem;
+  struct thread *t; 
+  void *uaddr;
+};
 
-struct hash frames;        /* Frames table */
-struct lock frames_lock;       /* Frame lock */
-struct condition frames_locked;  /* Condition to wait on for any frame to unpin\unlock */
+void *clock_point_init;     
+void *clock_point_max;      
+void *clock_point;      
+
+struct hash frames_table;       
+struct lock frame_table_lock;     
+struct condition frame_table_cond; 
   
+void fmt_init (void);
+struct frame *select_fm(void);
 void *fm_allocate (enum palloc_flags flags, bool lock);
 void release_fm (struct page *p, bool freepdir);
 void release_unused_fm (void *addr);
-void fmt_init (void);
-void thread_fm_mapping (void *kaddr, void *uaddr);
 struct frame *find_fm (void *address);
 bool if_fm_accessed (struct frame *f);
 bool if_fm_dirty (struct frame *f);
+void thread_fm_mapping (void *kaddr, void *uaddr);
 
-unsigned frame_hash_func (const struct hash_elem *e, void *aux UNUSED);
-bool frame_hash_less_func (const struct hash_elem *a,
-                           const struct hash_elem *b,
-                           void *aux UNUSED);
-unsigned t_to_uaddr_hash_func (const struct hash_elem *e, void *aux UNUSED);
-void clear_page_accessed (struct hash_elem *e, void *aux UNUSED);
-bool t_to_uaddr_hash_less_func (const struct hash_elem *a,
-                                const struct hash_elem *b,
-                                void *aux UNUSED);
-void t_to_uaddr_destructor_func (struct hash_elem *e, void *aux UNUSED);
-struct t_to_uaddr *t_to_uaddr_lookup (struct frame *f, struct thread *t);
-typedef bool pdir_bool_func (uint32_t *pd, const void *upage);
-bool ttu_ormap (struct frame *f, pdir_bool_func pdir_func);
-struct frame *select_fm(void);
+unsigned get_frame_hash (const struct hash_elem *e, void *aux UNUSED);
+bool cmp_frame_hash (const struct hash_elem *a,const struct hash_elem *b,
+                     void *aux UNUSED);
+void set_page_unaccessed (struct hash_elem *e, void *aux UNUSED);
+unsigned get_thread_uaddr_hash (const struct hash_elem *e, void *aux UNUSED);
+void remove_thread_uaddr (struct hash_elem *e, void *aux UNUSED);
+bool cmp_thread_uaddr_hash (const struct hash_elem *a, const struct hash_elem *b,
+                            void *aux UNUSED);
+struct thread_uaddr *find_thread_uaddr (struct frame *f, struct thread *t);
+typedef bool bool_fun (uint32_t *pd, const void *upage);
+bool apply_or_to_fmt (struct frame *fm, bool_fun pdir_func);
+

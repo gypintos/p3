@@ -40,14 +40,14 @@ void validate_addr (void *addr, void *esp, bool writable) {
     if (!addr || addr >= PHYS_BASE || addr < USER_VADDR_BASE )
         exit(-1);
 
-    lock_acquire(&frames_lock);
+    lock_acquire(&frame_table_lock);
     struct page *p = find_page(addr, thread_current());
     struct frame *fm = NULL;
     if (p != NULL && p->isLoaded){
         fm = find_fm(p->kaddr);
         fm->locked = true;
     }
-    lock_release(&frames_lock);
+    lock_release(&frame_table_lock);
 
     if (p != NULL && !p->isLoaded ) {
         bool load_result = load_page_to_frame(p, true);
@@ -229,20 +229,20 @@ void release_args (int *ptr, int count, void **argv) {
     int i;
     for (i = 0; i < count; i++){
         void* tmp_ptr = (void*) ++ptr;
-        lock_acquire(&frames_lock);
+        lock_acquire(&frame_table_lock);
         struct page *p = find_page(ptr, thread_current());
         if (p && p->isLoaded){
             struct frame *fm = find_fm(p->kaddr);
             fm->locked = false;
         }
-        lock_release(&frames_lock);
+        lock_release(&frame_table_lock);
         argv[i] = tmp_ptr;
     }
 }
 
 
 void release_buf (const char* buf_ptr, int size) {
-    lock_acquire(&frames_lock);
+    lock_acquire(&frame_table_lock);
     struct page  *p  = find_page(buf_ptr, thread_current());
     struct frame *fm = find_fm(p->kaddr);
     fm->locked = false;
@@ -259,8 +259,8 @@ void release_buf (const char* buf_ptr, int size) {
         fm = find_fm(p->kaddr);
         fm->locked = false;
     }
-    cond_signal(&frames_locked, &frames_lock);
-    lock_release(&frames_lock);
+    cond_signal(&frame_table_cond, &frame_table_lock);
+    lock_release(&frame_table_lock);
 }
 
 void halt (void) {
