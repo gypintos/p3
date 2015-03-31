@@ -101,7 +101,7 @@ syscall_handler (struct intr_frame *f)
             void *args[1];
             get_args(syscall, 1, args);
             f->eax = *(int *)args[0];
-            int exit_code = *(int *)args[0]
+            int exit_code = *(int *)args[0];
             exit(exit_code);
             break;
         case SYS_EXEC: 
