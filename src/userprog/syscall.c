@@ -93,6 +93,7 @@ syscall_handler (struct intr_frame *f)
  int* syscall = (int *)f->esp;
  validate_addr(syscall, NULL, false);
  void *args[3];
+ char *buf_ptr;
     switch (*syscall) 
     {
         case SYS_HALT: 
@@ -108,7 +109,7 @@ syscall_handler (struct intr_frame *f)
         case SYS_EXEC: 
             //void *args[1];
             get_args(syscall, 1, args);
-            char *buf_ptr = (char *)*(int *)args[0];
+            buf_ptr = (char *)*(int *)args[0];
             validate_addr(buf_ptr, f->esp, false);
             f->eax = exec(buf_ptr);
             release_args(syscall, 1, args);
@@ -122,7 +123,7 @@ syscall_handler (struct intr_frame *f)
         case SYS_CREATE: 
             //void *args[2];
             get_args(syscall, 2, args);
-            char *buf_ptr = (char *)*(int *)args[0];
+            buf_ptr = (char *)*(int *)args[0];
             validate_addr(buf_ptr, f->esp, false);
             f->eax = create(buf_ptr, *(int *)args[1]);
             release_args(syscall, 2, args);
@@ -130,7 +131,7 @@ syscall_handler (struct intr_frame *f)
         case SYS_REMOVE: 
             //void *args[1];
             get_args(syscall, 1, args);
-            char *buf_ptr = (char *)*(int *)args[0];
+            buf_ptr = (char *)*(int *)args[0];
             validate_addr(buf_ptr, f->esp, false);
             f->eax = remove (buf_ptr);
             release_args(syscall, 1, args);
@@ -138,7 +139,7 @@ syscall_handler (struct intr_frame *f)
         case SYS_OPEN: 
             //void *args[1];
             get_args(syscall, 1, args);
-            char *buf_ptr = (char *)*(int *)args[0];
+            buf_ptr = (char *)*(int *)args[0];
             validate_addr(buf_ptr, f->esp,  false);
             f->eax = open (buf_ptr);
             release_args(syscall, 1, args);
@@ -153,7 +154,7 @@ syscall_handler (struct intr_frame *f)
         case SYS_READ: 
             //void *args[3];
             get_args(syscall, 3, args);
-            char *buf_ptr = (char *)*(int *)args[1];
+            buf_ptr = (char *)*(int *)args[1];
             validate_buf(buf_ptr, *(unsigned *)args[2], f->esp, true);
             f->eax = read (*(int *)args[0], buf_ptr, *(unsigned *)args[2]);
             release_args(syscall, 3, args);
@@ -161,7 +162,7 @@ syscall_handler (struct intr_frame *f)
         case SYS_WRITE: 
             //void *args[3];
             get_args(syscall, 3, args);
-            char *buf_ptr = (char *)*(int *)args[1];
+            buf_ptr = (char *)*(int *)args[1];
             validate_buf (buf_ptr, *(int *)args[2], NULL,  false);
             f->eax = write (*(int *)args[0], buf_ptr, *(int *)args[2]);
             release_args(syscall, 3, args);
