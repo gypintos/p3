@@ -91,82 +91,65 @@ static void
 syscall_handler (struct intr_frame *f)
 {
  int* syscall = (int *)f->esp;
- validate_addr(syscall, NULL, /* Writeable */ false);
-    switch (*syscall) {
-        case SYS_HALT: {
+ validate_addr(syscall, NULL, false);
+    switch (*syscall) 
+    {
+        case SYS_HALT: 
             halt();
             break;
-        }
-        case SYS_WRITE: {
-            void *args[3];
-            get_args(syscall, 3, args);
-            char *buf_ptr = (char *)*(int *)args[1];
-            validate_buf (buf_ptr, *(int *)args[2], NULL, /* Writeable */ false);
-            f->eax = write (*(int *)args[0], buf_ptr, *(int *)args[2]);
-            release_args(syscall, 3, args);
-            break;
-        }
-        case SYS_OPEN: {
-            void *args[1];
-            get_args(syscall, 1, args);
-            char *buf_ptr = (char *)*(int *)args[0];
-            validate_addr(buf_ptr, f->esp, /* Writeable */ false);
-            f->eax = open (buf_ptr);
-            release_args(syscall, 1, args);
-            break;
-        }
-        case SYS_EXIT: {
+        case SYS_EXIT: 
             void *args[1];
             get_args(syscall, 1, args);
             f->eax = *(int *)args[0];
-            exit(*(int *)args[0]);
+            int exit_code = *(int *)args[0]
+            exit(exit_code);
             break;
-        }
-        case SYS_EXEC: {
+        case SYS_EXEC: 
             void *args[1];
             get_args(syscall, 1, args);
             char *buf_ptr = (char *)*(int *)args[0];
-            validate_addr(buf_ptr, f->esp, /* Writeable */ false);
-            int cid = exec(buf_ptr);
-            f->eax = cid;
+            validate_addr(buf_ptr, f->esp, false);
+            f->eax = exec(buf_ptr);
             release_args(syscall, 1, args);
             break;
-        }
-        case SYS_WAIT: {
+        case SYS_WAIT: 
             void *args[1];
             get_args(syscall, 1, args);
             f->eax = wait(*(int *) args[0]);
             release_args(syscall, 1, args);
             break;
-        }
-        case SYS_CREATE: {
-            // File system code checks for name length, so we do not need to.
+        case SYS_CREATE: 
             void *args[2];
             get_args(syscall, 2, args);
             char *buf_ptr = (char *)*(int *)args[0];
-            validate_addr(buf_ptr, f->esp, /* Writeable */ false);
+            validate_addr(buf_ptr, f->esp, false);
             f->eax = create(buf_ptr, *(int *)args[1]);
             release_args(syscall, 2, args);
             break;
-            }
-        case SYS_REMOVE: {
+        case SYS_REMOVE: 
             void *args[1];
             get_args(syscall, 1, args);
             char *buf_ptr = (char *)*(int *)args[0];
-            validate_addr(buf_ptr, f->esp, /* Writeable */ false);
+            validate_addr(buf_ptr, f->esp, false);
             f->eax = remove (buf_ptr);
             release_args(syscall, 1, args);
             break;
-            }
-        case SYS_FILESIZE: {
+        case SYS_OPEN: 
+            void *args[1];
+            get_args(syscall, 1, args);
+            char *buf_ptr = (char *)*(int *)args[0];
+            validate_addr(buf_ptr, f->esp,  false);
+            f->eax = open (buf_ptr);
+            release_args(syscall, 1, args);
+            break;
+        case SYS_FILESIZE: 
             void *args[1];
             get_args(syscall, 1, args);
             int file_sz = filesize(*(int *)args[0]);
             f->eax = file_sz;
             release_args(syscall, 1, args);
             break;
-            }
-        case SYS_READ: {
+        case SYS_READ: 
             void *args[3];
             get_args(syscall, 3, args);
             char *buf_ptr = (char *)*(int *)args[1];
@@ -174,44 +157,45 @@ syscall_handler (struct intr_frame *f)
             f->eax = read (*(int *)args[0], buf_ptr, *(unsigned *)args[2]);
             release_args(syscall, 3, args);
             break;
-        }
-        case SYS_SEEK: {
+        case SYS_WRITE: 
+            void *args[3];
+            get_args(syscall, 3, args);
+            char *buf_ptr = (char *)*(int *)args[1];
+            validate_buf (buf_ptr, *(int *)args[2], NULL,  false);
+            f->eax = write (*(int *)args[0], buf_ptr, *(int *)args[2]);
+            release_args(syscall, 3, args);
+            break;
+        case SYS_SEEK: 
             void *args[2];
             get_args(syscall, 2, args);
             seek (*(int *)args[0], *(unsigned *)args[1]);
             release_args(syscall, 2, args);
             break;
-            }
-        case SYS_TELL: {
+        case SYS_TELL: 
             void *args[1];
             get_args(syscall, 1, args);
             f->eax = tell(*(int *)args[0]);
             release_args(syscall, 1, args);
-            break;
-            }
-        case SYS_CLOSE: {
+            break;   
+        case SYS_CLOSE:
             void *args[1];
             get_args(syscall, 1, args);
             close (*(int *)args[0]);
             release_args(syscall, 1, args);
             break;
-        }
-        case SYS_MMAP: {
+        case SYS_MMAP: 
             void *args[2];
             get_args(syscall, 2, args);
             f->eax = mmap(*(int *)args[0], (char *)*(int *)args[1]);
             release_args(syscall, 2, args);
             break;
-        }
-        case SYS_MUNMAP: {
+        case SYS_MUNMAP: 
             void *args[1];
             get_args(syscall, 1, args);
             munmap((mapid_t)*(int *)args[0]);
             release_args(syscall, 1, args);
             break;
-        }
     }
-
 }
 
 void get_args (int *ptr, int count, void **argv) {
