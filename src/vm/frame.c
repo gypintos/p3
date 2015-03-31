@@ -173,15 +173,27 @@ void *allocate_frame (enum palloc_flags flags, bool lock) {
 /* Maps given user virtual address of the current thread to the
    frame at the given kernel virtual address */
 void assign_page_to_frame (void *kaddr, void *uaddr) {
+    // lock_acquire(&frames_lock);
+    // struct frame *f = frame_lookup (kaddr);
+    // struct t_to_uaddr *ttu = malloc(sizeof (struct t_to_uaddr));
+    // ttu->t = thread_current();
+    // ttu->uaddr = uaddr;
+    // hash_insert (&f->thread_to_uaddr, &ttu->elem);
+    // f->pinned = false;
+    // cond_signal(&frames_locked, &frames_lock);
+    // lock_release(&frames_lock);
+
     lock_acquire(&frames_lock);
-    struct frame *f = frame_lookup (kaddr);
-    struct t_to_uaddr *ttu = malloc(sizeof (struct t_to_uaddr));
-    ttu->t = thread_current();
-    ttu->uaddr = uaddr;
-    hash_insert (&f->thread_to_uaddr, &ttu->elem);
-    f->pinned = false;
-    cond_signal(&frames_locked, &frames_lock);
+    struct t_to_uaddr *thread_uaddr = malloc(sizeof(struct t_to_uaddr));
+    thread_uaddr->t = thread_current();
+    thread_uaddr->uaddr = uaddr;
+    struct frame *fm = frame_lookup(kaddr);
+    hash_insert(&fm->thread_to_uaddr, &thread_uaddr->elem);
+    fm->pinned = false;
+    cond_signal(&frames_lock, &frames_lock);
     lock_release(&frames_lock);
+
+
 }
 
 /* If no other threads are using the frame,
