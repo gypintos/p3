@@ -104,23 +104,22 @@ struct thread
     struct list_elem elem;              /* List element. */
 
     /* For userprog */
-    struct thread *parent;              /* Parent of this thread */
+    struct thread *parent;              
     
     /* Hash table for tracking status of thread's children */
     struct hash children;
     
-    /* Hash table for tracking thread's file descriptors */
     struct hash fds;
     
-    int fd_seq;              /* Sequence number of open file */
+    int fd_seq; 
 
-    struct file *exe;                  /* Pointer to process executable */
+    struct file *exe; 
 
-    struct list_elem exec_elem;         /* List element of the executable to thread mapping. */
+    struct list_elem exec_elem;  
   
-    struct hash mapids;					/* Hash table for tracking thread's mapids */
+    struct hash mapids;					
 
-    int mapid_cnt;           /* "Sequence" for mapids */
+    int mapid_cnt;         
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -181,16 +180,16 @@ struct child_info {
 struct child_info *find_child_info (struct thread *t, tid_t cid);
 
 struct file_desc {
-  int fid;                  /* ID of file descriptor */
-  struct  file *fptr;       /* the actual file poiter */
-  struct hash_elem elem;    /* hash element */
+  int fid;                  
+  struct  file *fptr;       
+  struct hash_elem elem;    
 };
 
 struct id_addr {
-  int mapid;                  /* Mapping id */
-  void *addr;                 /* Virtual address of first page */
-  int pnum;                   /* Number of virtual pages */
-  struct hash_elem elem;      /* Hash table element */
+  int mapid;                  
+  void *addr;                 
+  int pnum;                   
+  struct hash_elem elem;      
 };
 
 #endif /* threads/thread.h */
