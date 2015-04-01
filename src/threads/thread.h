@@ -103,12 +103,14 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-    /* For userprog */
     struct thread *parent;              
     
-    /* Hash table for tracking status of thread's children */
     struct hash children;
+
+    struct hash ht_id_addr;         
     
+    int id_addrs_seq;      
+
     struct hash fds;
     
     int fd_seq; 
@@ -116,10 +118,7 @@ struct thread
     struct file *exe; 
 
     struct list_elem exec_elem;  
-  
-    struct hash mapids;					
-
-    int mapid_cnt;         
+       
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */

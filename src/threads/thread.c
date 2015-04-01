@@ -216,9 +216,9 @@ thread_create (const char *name, int priority,
     hash_insert(&t->parent->children, &ci_->elem);
     hash_init(&t->children, child_info_hash_func, cmp_child_info_less, NULL);
     hash_init(&t->fds, file_desc_hash_func, cmp_file_desc_less, &filesys_lock);
-    hash_init(&t->mapids, id_addr_hash_func, cmp_id_addr_less, NULL);
+    hash_init(&t->ht_id_addr, id_addr_hash_func, cmp_id_addr_less, NULL);
     t->fd_seq = 1;
-    t->mapid_cnt = 1;
+    t->id_addrs_seq = 1;
   }
 
   /* Init supplemental page table */

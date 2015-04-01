@@ -25,7 +25,7 @@ static void syscall_handler (struct intr_frame *);
 struct semaphore sys_sema;
 
 void remove_fds (struct hash_elem *e, void *aux);
-void remove_mapids (struct hash_elem *e, void *aux UNUSED);
+void remove_id_addr_entry (struct hash_elem *e, void *aux UNUSED);
 void remove_child_info (struct hash_elem *e, void *aux UNUSED);
 
 void
@@ -242,7 +242,7 @@ void halt (void) {
 void exit (int status) {
     struct thread* curr= thread_current();
     printf ("%s: exit(%d)\n", curr->name, status);
-    hash_destroy(&curr->mapids, remove_mapids);
+    hash_destroy(&curr->ht_id_addr, remove_id_addr_entry);
     hash_destroy(&curr->fds, remove_fds);
 
     lock_acquire(&ht_exec_to_threads_lock);
@@ -440,7 +440,6 @@ unsigned tell (int fd) {
     return pos;
 }
 
-/* File descriptor destructor */
 void remove_fds (struct hash_elem *e, void *aux) {
     struct lock *fd_lock = (struct lock *) aux;
     struct file_desc *fdp = hash_entry (e, struct file_desc, elem);
@@ -450,14 +449,12 @@ void remove_fds (struct hash_elem *e, void *aux) {
     free(fdp);
 }
 
-/* Mapping  destructor */
-void remove_mapids (struct hash_elem *e, void *aux UNUSED) {
+void remove_id_addr_entry (struct hash_elem *e, void *aux UNUSED) {
     struct id_addr *m = hash_entry (e, struct id_addr, elem);
     munmap_helper (m, thread_current ());
     free(m);
 }
 
-/* child info destructor */
 void remove_child_info (struct hash_elem *e, void *aux UNUSED) {
     struct child_info *ct = hash_entry (e, struct child_info, elem);
     if (ct->cthread != NULL) {
@@ -530,13 +527,13 @@ mapid_t mmap (int fd, void *addr) {
     new_addr->addr = addr;
     new_addr->pnum = page_cnt;
 
-    if(curr->mapid_cnt == USHRT_MAX){
-        curr->mapid_cnt = 1;
+    if(curr->id_addrs_seq == USHRT_MAX){
+        curr->id_addrs_seq = 1;
     }
-    curr->mapid_cnt++;
-    new_addr->mapid = curr->mapid_cnt;
+    curr->id_addrs_seq++;
+    new_addr->mapid = curr->id_addrs_seq;
 
-    while(!hash_insert(&curr->mapids, &new_addr->elem)){
+    while(!hash_insert(&curr->ht_id_addr, &new_addr->elem)){
         ;
     }
     return new_addr->mapid;
@@ -548,7 +545,7 @@ void munmap (mapid_t id) {
     struct id_addr new_addr;
     new_addr.mapid = id;
     struct id_addr *e_addr;
-    struct hash_elem *ele = hash_find(&curr->mapids, &new_addr.elem);
+    struct hash_elem *ele = hash_find(&curr->ht_id_addr, &new_addr.elem);
 
     if(ele)    e_addr = hash_entry(ele, struct id_addr, elem);
     else    return;
@@ -570,5 +567,5 @@ void munmap_helper (struct id_addr *id, struct thread *t) {
         i++;
         
     }
-    hash_delete(&t->mapids, &id->elem);
+    hash_delete(&t->ht_id_addr, &id->elem);
 }
