@@ -62,9 +62,9 @@ userprog_SRC += userprog/gdt.c		# GDT initialization.
 userprog_SRC += userprog/tss.c		# TSS management.
 
 # Virtual memory code
-vm_SRC = vm/frame.c                 # Frame allocation and tracking
-vm_SRC += vm/page.c                 # Page code
-vm_SRC += vm/swap.c                 # Swap disk code
+vm_SRC = vm/frame.c                 
+vm_SRC += vm/page.c                 
+vm_SRC += vm/swap.c                
 
 
 # Filesystem code.
