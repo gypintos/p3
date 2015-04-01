@@ -620,14 +620,12 @@ allocate_tid (void)
   return tid;
 }
 
-/* Use file descriptor id as its hash value */
 unsigned file_desc_hash_func(const struct hash_elem* e, void* aux UNUSED) 
 {
   struct file_desc *fd = hash_entry( e, struct file_desc, elem );
   return fd->fid;
 }
 
-/* Use file descriptor id as the key to compare to file descriptor*/
 bool cmp_file_desc_less(const struct hash_elem* a, const struct hash_elem* b,
                         void* aux UNUSED) 
 {
@@ -636,14 +634,12 @@ bool cmp_file_desc_less(const struct hash_elem* a, const struct hash_elem* b,
   return fd_a->fid < fd_b->fid;
 }
 
-/* Use child info id as the key for hash */
 unsigned child_info_hash_func (const struct hash_elem* e, void* aux UNUSED) 
 {
   struct child_info *ci = hash_entry(e, struct child_info, elem);
   return hash_int(ci->cid);
 }
 
-/* Use child info id as the key for comparing */
 bool cmp_child_info_less (const struct hash_elem* a, const struct hash_elem* b,
                           void *aux UNUSED) 
 {
@@ -652,14 +648,12 @@ bool cmp_child_info_less (const struct hash_elem* a, const struct hash_elem* b,
   return ci_a->cid < ci_b->cid;
 }
 
-/* Use id_addr id as the key for hash */
 unsigned id_addr_hash_func (const struct hash_elem* e, void* aux UNUSED) 
 {
 	struct id_addr *mp = hash_entry (e, struct id_addr, elem);
 	return mp->mapid;
 }
 
-/* User mapid as the key for comparing */
 bool cmp_id_addr_less (const struct hash_elem *a, const struct hash_elem *b,
                            void *aux)
 {
@@ -668,7 +662,6 @@ bool cmp_id_addr_less (const struct hash_elem *a, const struct hash_elem *b,
 	return m_a->mapid < m_b->mapid;
 }
 
-/* Return child info for given cid, if there exist one, otherwise NULL*/
 struct child_info *find_child_info (struct thread *t, tid_t cid) 
 {
   struct child_info ci;
