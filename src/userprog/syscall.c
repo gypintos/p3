@@ -525,7 +525,7 @@ mapid_t mmap (int fd, void *addr) {
     struct id_addr *new_addr;
     new_addr = (struct id_addr *)malloc(sizeof(struct id_addr));
     new_addr->addr = addr;
-    new_addr->pnum = page_cnt;
+    new_addr->page_cnt = page_cnt;
 
     if(curr->id_addrs_seq == USHRT_MAX){
         curr->id_addrs_seq = 1;
@@ -557,7 +557,7 @@ void munmap (mapid_t id) {
 void munmap_helper (struct id_addr *id, struct thread *t) {
     void *addr = id->addr;
     int i = 1;
-    while( i <= id->pnum){
+    while( i <= id->page_cnt){
         struct page *p = find_page(addr, t);
         ASSERT(p && p->type == MMAP);
         free_mmap_page_to_file(p);

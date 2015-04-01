@@ -185,10 +185,10 @@ struct file_desc {
 };
 
 struct id_addr {
-  int mapid;                  
-  void *addr;                 
-  int pnum;                   
   struct hash_elem elem;      
+  int mapid;
+  void *addr;
+  int page_cnt;
 };
 
 #endif /* threads/thread.h */
